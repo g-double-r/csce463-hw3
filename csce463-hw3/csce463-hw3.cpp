@@ -1,3 +1,9 @@
+/*
+ * Giovan Ramirez-Rodarte
+ * 432004695
+ * CSCE 463 Fall 2025
+*/
+
 // csce463-hw3.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
