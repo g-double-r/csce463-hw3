@@ -17,6 +17,7 @@
 	#include <sys/time.h>
 	#include <sys/types.h>
 	#include <unistd.h>
+    #include <netdb.h>
 	#define WSAGetLastError() (errno)
 	#define WSACleanup() ((void)0)
 	typedef int SOCKET;
@@ -31,6 +32,8 @@
 
 #include "SenderSocket.h"
 #include "PacketHeaders.h"
-#include <cstring>
+#include <cstdio>
+#include <cstdlib>
+#include <chrono>
 
 #endif //PCH_H

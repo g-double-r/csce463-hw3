@@ -2,23 +2,117 @@
  * Giovan Ramirez-Rodarte
  * 432004695
  * CSCE 463 Fall 2025
-*/
+ */
 
 // csce463-hw3.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
 #include "pch.h"
-#include <iostream>
+#include "SenderSocket.h"
 
-int main()
+using std::chrono::duration;
+using std::chrono::duration_cast;
+using std::chrono::high_resolution_clock;
+using std::chrono::milliseconds;
+
+int main(int argc, char *argv[])
 {
-    std::cout << "Hello World!\n";
+    // error check for 7 args
+    if (argc != 8)
+    {
+        printf(
+            "Incorrect Usage!\n\n"
+            "Usage:\n"
+            "    ./csce463-hw3{.exe} <destination_server> <buffer_size> <sender_window> <propagation_delay> <forward_loss> <return_loss> <bottleneck_speed>\n\n"
+            "Arguments:\n"
+            "    destination_server    Hostname or IP of the destination server\n"
+            "    buffer_size           Power of 2 for buffer size\n"
+            "    sender_window         Number of packets in the sender's window\n"
+            "    propagation_delay     Propagation delay in seconds\n"
+            "    forward_loss          Probability of packet loss in the forward direction\n"
+            "    return_loss           Probability of packet loss in the return direction\n"
+            "    bottleneck_speed      Bottleneck speed in Mbps\n");
+    }
+#ifdef _WIN32
+    initializeWinsock();
+#endif
+
+    // parse command-line parameters
+    char *targetHost = argv[1];
+    int power = atoi(argv[2]);
+    int senderWindow = atoi(argv[3]);
+    float propagationDelay = atof(argv[4]);
+    float forwardLoss = atof(argv[5]);
+    float returnLoss = atof(argv[6]);
+    int linkSpeed = atoi(argv[7]);
+
+    printf("Main:   sender W = %d, RTT %f sec, loss %g / %g, link %dMbps\n", senderWindow, propagationDelay, forwardLoss, returnLoss, linkSpeed);
+
+    // initialize dword buffer
+    uint64_t dwordBufSize = (uint64_t)1 << power;
+    DWORD *dwordBuf = new DWORD[dwordBufSize];
+    printf("Main:   initializing DWORD array with 2^%d elements... ", power);
+    auto start = high_resolution_clock::now();
+    for (uint64_t i = 0; i < dwordBufSize; ++i)
+    {
+        dwordBuf[i] = i;
+    }
+    auto elapsed = duration_cast<milliseconds>(high_resolution_clock::now() - start);
+    printf("done in %lld ms\n", elapsed.count());
+
+    // instantiate sendersocket class
+    SenderSocket ss;
+
+    // open connection
+    LinkProperties lp;
+    lp.RTT = propagationDelay;
+    lp.speed = 1e6 * linkSpeed;
+    lp.pLoss[FORWARD_PATH] = forwardLoss;
+    lp.pLoss[RETURN_PATH] = returnLoss;
+    lp.bufferSize = (DWORD)(senderWindow + 5);
+    start = high_resolution_clock::now();
+    int status = ss.Open(targetHost, MAGIC_PORT, senderWindow, &lp);
+    double secs = duration_cast<duration<double>>(high_resolution_clock::now() - start).count();
+
+    printf("Main:   ");
+    switch (status)
+    {
+    case INVALID_NAME:
+        printf("target %s is invalid\n", targetHost);
+        exit(EXIT_FAILURE);
+    case FAILED_SEND:
+        printf("connect failed with status %d\n", status);
+        exit(EXIT_FAILURE);
+    case FAILED_RECV:
+        printf("connect failed with status %d\n", status);
+        exit(EXIT_FAILURE);
+    case TIMEOUT:
+        printf("connect failed with status %d\n", status);
+        exit(EXIT_FAILURE);
+    default:
+        printf("connected to %s in %f sec, pkt size bytes\n", targetHost, secs);
+        break;
+    }
+
+    // send loop
+    char *charBuf = (char *)dwordBuf;
+    uint64_t byteBufferSize = dwordBufSize << 2;
+
+    uint64_t off = 0;
+
+    // close connection
+
+#ifdef _WIN32
+    cleanUpWinsock();
+#endif
+
+    return 0;
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
 // Debug program: F5 or Debug > Start Debugging menu
 
-// Tips for Getting Started: 
+// Tips for Getting Started:
 //   1. Use the Solution Explorer window to add/manage files
 //   2. Use the Team Explorer window to connect to source control
 //   3. Use the Output window to see build output and other messages

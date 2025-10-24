@@ -9,6 +9,7 @@
 	#include <sys/time.h>
 	#include <sys/types.h>
 	#include <unistd.h>
+	#include <netdb.h>
 	#define WSAGetLastError() (errno)
 	#define WSACleanup() ((void)0)
 	typedef int SOCKET;
@@ -22,6 +23,7 @@
 #endif
 
 #include "PacketHeaders.h"
+#include <chrono>
 
 // CONSTANTS
 #define MAGIC_PORT 22345		 // receiver listens on this port
@@ -39,14 +41,24 @@
 class SenderSocket
 {
 private:
-	SOCKET socket;
+	SOCKET sock;
 	sockaddr_in local;
-	sockaddr_in remote;
+	std::chrono::steady_clock::time_point constructedTime;
+	double RTO = 1;
+	int maxAttempsSYN = 3;
+	int maxAttempsFIN = 5;
+	short window = 1;
+	void closeSocket();
+	double getElapsedTime();
 
 public:
+	SenderSocket();
+	~SenderSocket();
 	int Open(char *targetHost, short port, int senderWindow, LinkProperties *linkProperties);
 	int Send(char *buf, int bytes);
 	int Close();
-	void intiliazeWinsock();
-	void cleanupWinsock();
+	#ifdef _WIN32
+	void initializeWinsock();
+	void cleanUpWinsock();
+	#endif
 };
