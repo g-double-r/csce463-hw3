@@ -79,30 +79,38 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     remote.sin_family = AF_INET;
     remote.sin_port = port;
 
-    hostent *host = gethostbyname(targetHost);
-    if (!host)
-    {
-        return INVALID_NAME;
+    DWORD IP = inet_addr(targetHost);
+    if (IP == INADDR_NONE) {
+        hostent* host = gethostbyname(targetHost);
+        if (!host)
+        {
+            printf("[%.3f]  --> target %s is invalid\n", getElapsedTime(), targetHost);
+            return INVALID_NAME;
+        }
+        memcpy((char*)&(remote.sin_addr), host->h_addr, host->h_length);
     }
-    memcpy((char *)&(remote.sin_addr), host->h_addr, host->h_length);
+    else {
+        remote.sin_addr.S_un.S_addr = IP;
+    }
 
     // send
     // declare struct directly and read into it
     // sizeof sendersynheader when sending
-    SenderSynHeader sshRecv;
+    // SenderSynHeader sshRecv;
+    ReceiverHeader rh;
     sockaddr_in response;
     socklen_t respLen = sizeof(response);
-    int count = 1;
+    int count = 0;
     int nfds = (int)(sock + 1);
-    while (count <= maxAttempsSYN)
+    while (count < maxAttempsSYN)
     {
         // send request to server
-        printf("[%.3f]  --> SYN ", getElapsedTime());
-
+        printf("[%.3f]  --> SYN %u (attempt %d of %d, RTO %.3f) to %s\n", getElapsedTime(), ssh.sdh.seq, count + 1, maxAttempsSYN, RTO, inet_ntoa(remote.sin_addr));
+      
         auto start = high_resolution_clock::now();
-        if (sendto(sock, &ssh, sizeof(SenderSynHeader), 0, (sockaddr *)&remote, sizeof(remote)) == SOCKET_ERROR)
+        if (sendto(sock, (char *)(&ssh), sizeof(SenderSynHeader), 0, (sockaddr*)&remote, sizeof(remote)) == SOCKET_ERROR)
         {
-            printf("failed with %d on sendto()\n", WSAGetLastError());
+            printf("[%.3f]  --> failed with %d on sendto()\n", getElapsedTime(), WSAGetLastError());
             return FAILED_SEND;
             // WSACleanup();
             // exit(EXIT_FAILURE);
@@ -111,7 +119,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
         // prepare to receive
         // TODO: tie to RTO?
         timeval timeout;
-        timeout.tv_sec = 1;
+        timeout.tv_sec = RTO;
         timeout.tv_usec = 0;
         fd_set fd;
         FD_ZERO(&fd);      // clear the set
@@ -120,10 +128,10 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
         int available = select(nfds, &fd, NULL, NULL, &timeout);
         if (available > 0)
         {
-            int bytes = recvfrom(sock, &sshRecv, sizeof(SenderSynHeader), 0, (sockaddr *)&response, &respLen);
+            int bytes = recvfrom(sock, (char *)(&rh), sizeof(ReceiverHeader), 0, (sockaddr*)&response, &respLen);
             if (bytes == SOCKET_ERROR)
             {
-                printf("failed with %d on recvfrom()\n", WSAGetLastError());
+                printf("[%.3f]  --> failed with %d on recvfrom()\n", getElapsedTime(), WSAGetLastError());
                 return FAILED_RECV;
                 // exit(EXIT_FAILURE);
             }
@@ -131,28 +139,28 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
             double delta = duration_cast<duration<double>>(high_resolution_clock::now() - start).count();
             // parse sdh
             // !! window size is always one for part 1
-            if (sshRecv.sdh.flags.SYN != 1 || sshRecv.sdh.flags.ACK != 1)
+            if (rh.flags.SYN!= 1 || rh.flags.ACK != 1)
             {
                 printf("SYN-ACK not acknowledged!\n");
                 exit(EXIT_FAILURE);
             }
-            printf("%u (attempt %d of %d, RTO %.3f) to %s\n", ssh.sdh.seq, count, maxAttempsSYN, RTO, inet_ntoa(remote.sin_addr));
             RTO -= delta;
-            printf("[%.3f]  --> SYN-ACK %u window %d; setting initial RTO to %.3f\n", getElapsedTime(), sshRecv.sdh.seq, window, RTO);
+            printf("[%.3f]  --> SYN-ACK %u window %d; setting initial RTO to %.3f\n", getElapsedTime(), rh.ackSeq, rh.recvWnd, RTO);
+            return STATUS_OK;
         }
         else if (available == SOCKET_ERROR)
         {
-            printf("failed with  %d on select\n", WSAGetLastError());
+            printf("[%.3f]  --> failed with %d on select()\n", getElapsedTime(), WSAGetLastError());
         }
         else if (available == 0)
         {
-            printf("failed with connection timeout in 1000ms\n");
+            // printf("failed with connection timeout in 1000ms\n");
             ++count;
             continue;
         }
         else
         {
-            printf("failed with other error %d\n", WSAGetLastError());
+            printf("[%.3f]  --> failed with other error %d\n", getElapsedTime(), WSAGetLastError());
             exit(EXIT_FAILURE);
         }
         ++count;
@@ -176,25 +184,3 @@ int SenderSocket::Close()
     // TODO: sends FIN and receieves FIN-ACK
     return 0;
 }
-
-#ifdef _WIN32
-void initializeWinsock()
-{
-    WSADATA wsaData;
-
-    // Initialize WinSock once per program run
-    WORD wVersionRequested = MAKEWORD(2, 2);
-    if (WSAStartup(wVersionRequested, &wsaData) != 0)
-    {
-        printf("WSAStartup error %d\n", WSAGetLastError());
-        WSACleanup();
-        exit(EXIT_FAILURE);
-    }
-}
-
-void cleanUpWinsock()
-{
-    // call cleanup when done with everything and ready to exit program
-    WSACleanup();
-}
-#endif

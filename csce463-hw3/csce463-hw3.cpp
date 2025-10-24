@@ -15,6 +15,28 @@ using std::chrono::duration_cast;
 using std::chrono::high_resolution_clock;
 using std::chrono::milliseconds;
 
+#ifdef _WIN32
+void initializeWinsock()
+{
+    WSADATA wsaData;
+
+    // Initialize WinSock once per program run
+    WORD wVersionRequested = MAKEWORD(2, 2);
+    if (WSAStartup(wVersionRequested, &wsaData) != 0)
+    {
+        printf("WSAStartup error %d\n", WSAGetLastError());
+        WSACleanup();
+        exit(EXIT_FAILURE);
+    }
+}
+
+void cleanUpWinsock()
+{
+    // call cleanup when done with everything and ready to exit program
+    WSACleanup();
+}
+#endif
+
 int main(int argc, char *argv[])
 {
     // error check for 7 args
@@ -41,9 +63,9 @@ int main(int argc, char *argv[])
     char *targetHost = argv[1];
     int power = atoi(argv[2]);
     int senderWindow = atoi(argv[3]);
-    float propagationDelay = atof(argv[4]);
-    float forwardLoss = atof(argv[5]);
-    float returnLoss = atof(argv[6]);
+    float propagationDelay = (float)atof(argv[4]);
+    float forwardLoss = (float)atof(argv[5]);
+    float returnLoss = (float)atof(argv[6]);
     int linkSpeed = atoi(argv[7]);
 
     printf("Main:   sender W = %d, RTT %f sec, loss %g / %g, link %dMbps\n", senderWindow, propagationDelay, forwardLoss, returnLoss, linkSpeed);
@@ -55,7 +77,7 @@ int main(int argc, char *argv[])
     auto start = high_resolution_clock::now();
     for (uint64_t i = 0; i < dwordBufSize; ++i)
     {
-        dwordBuf[i] = i;
+        dwordBuf[i] = (DWORD)i;
     }
     auto elapsed = duration_cast<milliseconds>(high_resolution_clock::now() - start);
     printf("done in %lld ms\n", elapsed.count());
@@ -66,7 +88,7 @@ int main(int argc, char *argv[])
     // open connection
     LinkProperties lp;
     lp.RTT = propagationDelay;
-    lp.speed = 1e6 * linkSpeed;
+    lp.speed = (float)(1e6 * linkSpeed);
     lp.pLoss[FORWARD_PATH] = forwardLoss;
     lp.pLoss[RETURN_PATH] = returnLoss;
     lp.bufferSize = (DWORD)(senderWindow + 5);
@@ -78,7 +100,7 @@ int main(int argc, char *argv[])
     switch (status)
     {
     case INVALID_NAME:
-        printf("target %s is invalid\n", targetHost);
+        printf("connect failed with status %d\n", status);
         exit(EXIT_FAILURE);
     case FAILED_SEND:
         printf("connect failed with status %d\n", status);
@@ -90,7 +112,7 @@ int main(int argc, char *argv[])
         printf("connect failed with status %d\n", status);
         exit(EXIT_FAILURE);
     default:
-        printf("connected to %s in %f sec, pkt size bytes\n", targetHost, secs);
+        printf("connected to %s in %f sec, pkt size %zu bytes\n", targetHost, secs, sizeof(SenderSynHeader));
         break;
     }
 
