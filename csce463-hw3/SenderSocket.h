@@ -44,6 +44,7 @@ class SenderSocket
 private:
 	SOCKET sock;
 	sockaddr_in local;
+	sockaddr_in remote;
 	std::chrono::steady_clock::time_point constructedTime;
 	double RTO = 1;
 	int maxAttempsSYN = 3;

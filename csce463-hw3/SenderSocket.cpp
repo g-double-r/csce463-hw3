@@ -30,6 +30,9 @@ SenderSocket::SenderSocket()
         exit(EXIT_FAILURE);
     }
 
+    // setup remote
+    memset(&remote, 0, sizeof(remote));
+
     constructedTime = steady_clock::now();
 }
 
@@ -70,34 +73,38 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     // prepare packet to send
     SenderSynHeader ssh;
     ssh.sdh.flags.SYN = 1;
+    ssh.sdh.flags.reserved = 0;
     memcpy(&ssh.lp, linkProperties, sizeof(LinkProperties));
     ssh.sdh.seq = 0;
 
     // locate destination
-    sockaddr_in remote;
-    memset(&remote, 0, sizeof(remote));
     remote.sin_family = AF_INET;
-    remote.sin_port = port;
+    remote.sin_port = htons(port);
 
     DWORD IP = inet_addr(targetHost);
-    if (IP == INADDR_NONE) {
-        hostent* host = gethostbyname(targetHost);
+    if (IP == INADDR_NONE)
+    {
+        hostent *host = gethostbyname(targetHost);
         if (!host)
         {
             printf("[%.3f]  --> target %s is invalid\n", getElapsedTime(), targetHost);
             return INVALID_NAME;
         }
-        memcpy((char*)&(remote.sin_addr), host->h_addr, host->h_length);
+        memcpy((char *)&(remote.sin_addr), host->h_addr, host->h_length);
     }
-    else {
+    else
+    {
+#ifdef _WIN32
         remote.sin_addr.S_un.S_addr = IP;
+#else
+        remote.sin_addr.s_addr = IP;
+#endif
     }
 
     // send
     // declare struct directly and read into it
     // sizeof sendersynheader when sending
-    // SenderSynHeader sshRecv;
-    ReceiverHeader rh;
+    SenderSynHeader sshRecv;
     sockaddr_in response;
     socklen_t respLen = sizeof(response);
     int count = 0;
@@ -106,9 +113,9 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     {
         // send request to server
         printf("[%.3f]  --> SYN %u (attempt %d of %d, RTO %.3f) to %s\n", getElapsedTime(), ssh.sdh.seq, count + 1, maxAttempsSYN, RTO, inet_ntoa(remote.sin_addr));
-      
+
         auto start = high_resolution_clock::now();
-        if (sendto(sock, (char *)(&ssh), sizeof(SenderSynHeader), 0, (sockaddr*)&remote, sizeof(remote)) == SOCKET_ERROR)
+        if (sendto(sock, (char *)(&ssh), sizeof(SenderSynHeader), 0, (sockaddr *)&remote, sizeof(remote)) == SOCKET_ERROR)
         {
             printf("[%.3f]  --> failed with %d on sendto()\n", getElapsedTime(), WSAGetLastError());
             return FAILED_SEND;
@@ -128,7 +135,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
         int available = select(nfds, &fd, NULL, NULL, &timeout);
         if (available > 0)
         {
-            int bytes = recvfrom(sock, (char *)(&rh), sizeof(ReceiverHeader), 0, (sockaddr*)&response, &respLen);
+            int bytes = recvfrom(sock, (char *)(&sshRecv), sizeof(SenderSynHeader), 0, (sockaddr *)&response, &respLen);
             if (bytes == SOCKET_ERROR)
             {
                 printf("[%.3f]  --> failed with %d on recvfrom()\n", getElapsedTime(), WSAGetLastError());
@@ -139,13 +146,13 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
             double delta = duration_cast<duration<double>>(high_resolution_clock::now() - start).count();
             // parse sdh
             // !! window size is always one for part 1
-            if (rh.flags.SYN!= 1 || rh.flags.ACK != 1)
+            if (sshRecv.sdh.flags.SYN != 1 || sshRecv.sdh.flags.ACK != 1)
             {
                 printf("SYN-ACK not acknowledged!\n");
                 exit(EXIT_FAILURE);
             }
             RTO -= delta;
-            printf("[%.3f]  --> SYN-ACK %u window %d; setting initial RTO to %.3f\n", getElapsedTime(), rh.ackSeq, rh.recvWnd, RTO);
+            printf("[%.3f]  --> SYN-ACK %u window %d; setting initial RTO to %.3f\n", getElapsedTime(), sshRecv.sdh.seq, window, RTO);
             return STATUS_OK;
         }
         else if (available == SOCKET_ERROR)

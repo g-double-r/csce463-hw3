@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
             "    forward_loss          Probability of packet loss in the forward direction\n"
             "    return_loss           Probability of packet loss in the return direction\n"
             "    bottleneck_speed      Bottleneck speed in Mbps\n");
+            exit(EXIT_FAILURE);
     }
 #ifdef _WIN32
     initializeWinsock();
