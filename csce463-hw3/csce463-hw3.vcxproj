@@ -145,7 +145,7 @@
     <ClCompile Include="SenderSocket.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="packetHeaders.h" />
+    <ClInclude Include="PacketHeaders.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="SenderSocket.h" />
   </ItemGroup>

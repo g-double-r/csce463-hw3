@@ -134,8 +134,13 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
         // prepare to receive
         // TODO: tie to RTO?
         timeval timeout;
+        #ifdef __APPLE__
         timeout.tv_sec = (time_t)RTO;
         timeout.tv_usec = (suseconds_t)((RTO - timeout.tv_sec) * 1e6);
+        #else
+        timeout.tv_sec = (long)RTO;
+        timeout.tv_usec = (long)((RTO - timeout.tv_sec) * 1e6);
+        #endif
         fd_set fd;
         FD_ZERO(&fd);      // clear the set
         FD_SET(sock, &fd); // add your socket to the set
@@ -162,7 +167,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
             double delta = getElapsedTime() - start;
             RTO = (3 * delta);
             // TODO: change window afer part1
-            printf("[%.3f]  --> SYN-ACK %u window 1; setting initial RTO to %.3f\n", end, ssh.sdh.seq, RTO);
+            printf("[%.3f]  <-- SYN-ACK %u window 1; setting initial RTO to %.3f\n", end, ssh.sdh.seq, RTO);
             return STATUS_OK;
         }
         else if (available == SOCKET_ERROR)
@@ -244,8 +249,13 @@ int SenderSocket::Close()
         // prepare to receive
         // TODO: tie to RTO?
         timeval timeout;
+        #ifdef __APPLE__
         timeout.tv_sec = (time_t)RTO;
         timeout.tv_usec = (suseconds_t)((RTO - timeout.tv_sec) * 1e6);
+        #else
+        timeout.tv_sec = (long)RTO;
+        timeout.tv_usec = (long)((RTO - timeout.tv_sec) * 1e6);
+        #endif
         fd_set fd;
         FD_ZERO(&fd);      // clear the set
         FD_SET(sock, &fd); // add your socket to the set
@@ -270,7 +280,7 @@ int SenderSocket::Close()
             }
             double end = getElapsedTime();
             // TODO: change window afer part1
-            printf("[%.3f]  --> FYN-ACK %u window 0\n", end, ssh.sdh.seq);
+            printf("[%.3f]  <-- FYN-ACK %u window 0\n", end, ssh.sdh.seq);
             return STATUS_OK;
         }
         else if (available == SOCKET_ERROR)

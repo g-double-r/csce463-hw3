@@ -20,7 +20,6 @@
 	#define _WINSOCK_DEPRECATED_NO_WARNINGS
 	#include <WinSock2.h>
 	#include <WS2tcpip.h>
-	typedef long time_t, suseconds_t
 	#pragma comment(lib, "Ws2_32.lib")
 #endif
 
