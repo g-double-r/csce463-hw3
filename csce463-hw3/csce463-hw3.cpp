@@ -113,15 +113,15 @@ int main(int argc, char *argv[])
         printf("connect failed with status %d\n", status);
         exit(EXIT_FAILURE);
     default:
-        printf("connected to %s in %f sec, pkt size %zu bytes\n", targetHost, secs, sizeof(SenderSynHeader));
+        printf("connected to %s in %.3f sec, pkt size %zu bytes\n", targetHost, secs, sizeof(SenderSynHeader));
         break;
     }
 
     // send loop
-    char *charBuf = (char *)dwordBuf;
-    uint64_t byteBufferSize = dwordBufSize << 2;
+    // char *charBuf = (char *)dwordBuf;
+    // uint64_t byteBufferSize = dwordBufSize << 2;
 
-    uint64_t off = 0;
+    // uint64_t off = 0;
 
     // close connection
 

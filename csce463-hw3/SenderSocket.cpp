@@ -112,9 +112,9 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     while (count < maxAttempsSYN)
     {
         // send request to server
-        printf("[%.3f]  --> SYN %u (attempt %d of %d, RTO %.3f) to %s\n", getElapsedTime(), ssh.sdh.seq, count + 1, maxAttempsSYN, RTO, inet_ntoa(remote.sin_addr));
+        double start = getElapsedTime();
+        printf("[%.3f]  --> SYN %u (attempt %d of %d, RTO %.3f) to %s\n", start, ssh.sdh.seq, count + 1, maxAttempsSYN, RTO, inet_ntoa(remote.sin_addr));
 
-        auto start = high_resolution_clock::now();
         if (sendto(sock, (char *)(&ssh), sizeof(SenderSynHeader), 0, (sockaddr *)&remote, sizeof(remote)) == SOCKET_ERROR)
         {
             printf("[%.3f]  --> failed with %d on sendto()\n", getElapsedTime(), WSAGetLastError());
@@ -143,7 +143,6 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
                 // exit(EXIT_FAILURE);
             }
 
-            double delta = duration_cast<duration<double>>(high_resolution_clock::now() - start).count();
             // parse sdh
             // !! window size is always one for part 1
             if (sshRecv.sdh.flags.SYN != 1 || sshRecv.sdh.flags.ACK != 1)
@@ -151,8 +150,11 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
                 printf("SYN-ACK not acknowledged!\n");
                 exit(EXIT_FAILURE);
             }
-            RTO -= delta;
-            printf("[%.3f]  --> SYN-ACK %u window %d; setting initial RTO to %.3f\n", getElapsedTime(), sshRecv.sdh.seq, window, RTO);
+            double end = getElapsedTime();
+            double delta = getElapsedTime() - start;
+            RTO = (3 * delta);
+            // TODO: change window afer part1
+            printf("[%.3f]  --> SYN-ACK %u window 1; setting initial RTO to %.3f\n", end, ssh.sdh.seq, RTO);
             return STATUS_OK;
         }
         else if (available == SOCKET_ERROR)
