@@ -20,6 +20,7 @@
 	#define _WINSOCK_DEPRECATED_NO_WARNINGS
 	#include <WinSock2.h>
 	#include <WS2tcpip.h>
+	typedef long time_t, suseconds_t
 	#pragma comment(lib, "Ws2_32.lib")
 #endif
 
@@ -49,7 +50,8 @@ private:
 	double RTO = 1;
 	int maxAttempsSYN = 3;
 	int maxAttempsFIN = 5;
-	short window = 1;
+	// TODO: update after part1
+	// short window = 1;
 	void closeSocket();
 	double getElapsedTime();
 

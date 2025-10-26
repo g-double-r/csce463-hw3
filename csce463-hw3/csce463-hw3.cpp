@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
             "    forward_loss          Probability of packet loss in the forward direction\n"
             "    return_loss           Probability of packet loss in the return direction\n"
             "    bottleneck_speed      Bottleneck speed in Mbps\n");
-            exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);
     }
 #ifdef _WIN32
     initializeWinsock();
@@ -96,39 +96,74 @@ int main(int argc, char *argv[])
     start = high_resolution_clock::now();
     int status = ss.Open(targetHost, MAGIC_PORT, senderWindow, &lp);
     double secs = duration_cast<duration<double>>(high_resolution_clock::now() - start).count();
+    start = high_resolution_clock::now();
 
     printf("Main:   ");
     switch (status)
     {
     case INVALID_NAME:
         printf("connect failed with status %d\n", status);
+        delete[] dwordBuf;
+        #ifdef _WIN32
+        cleanUpWinsock();
+        #endif
         exit(EXIT_FAILURE);
     case FAILED_SEND:
         printf("connect failed with status %d\n", status);
+        delete[] dwordBuf;
+        #ifdef _WIN32
+        cleanUpWinsock();
+        #endif
         exit(EXIT_FAILURE);
     case FAILED_RECV:
         printf("connect failed with status %d\n", status);
+        delete[] dwordBuf;
+        #ifdef _WIN32
+        cleanUpWinsock();
+        #endif
         exit(EXIT_FAILURE);
     case TIMEOUT:
         printf("connect failed with status %d\n", status);
+        delete[] dwordBuf;
+        #ifdef _WIN32
+        cleanUpWinsock();
+        #endif
         exit(EXIT_FAILURE);
     default:
-        printf("connected to %s in %.3f sec, pkt size %zu bytes\n", targetHost, secs, sizeof(SenderSynHeader));
+        printf("connected to %s in %.3f sec, pkt size %d bytes\n", targetHost, secs, MAX_PKT_SIZE);
         break;
     }
 
     // send loop
-    // char *charBuf = (char *)dwordBuf;
-    // uint64_t byteBufferSize = dwordBufSize << 2;
+    char *charBuf = (char *)dwordBuf;
+    uint64_t byteBufferSize = dwordBufSize << 2;
 
-    // uint64_t off = 0;
+    uint64_t off = 0; // current position in buffer
+    while (off < byteBufferSize)
+    {
+    // decide the size of next chunk
+    int bytes = std::min((byteBufferSize - off), (uint64_t)(MAX_PKT_SIZE - sizeof(SenderDataHeader)));
+    // send chunk into socket
+    if ((status = ss.Send (charBuf + off, bytes)) != STATUS_OK)
+    // error handing: print status and quit
+    off += bytes;
+    } 
 
     // close connection
+    status = ss.Close();
+    if (status != STATUS_OK)
+    {
+        printf("close failed with status %d\n", status);
+        exit(EXIT_FAILURE);
+    }
+    secs = duration_cast<duration<double>>(high_resolution_clock::now() - start).count();
+    printf("Main:   transfer finished in %.3f sec\n", secs);
 
 #ifdef _WIN32
     cleanUpWinsock();
 #endif
 
+    delete[] dwordBuf;
     return 0;
 }
 

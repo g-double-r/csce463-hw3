@@ -36,5 +36,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <chrono>
+#include <algorithm>
 
 #endif //PCH_H
