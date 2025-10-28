@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
     float returnLoss = (float)atof(argv[6]);
     int linkSpeed = atoi(argv[7]);
 
-    printf("Main:   sender W = %d, RTT %.3f sec, loss %g / %g, link %dMbps\n", senderWindow, propagationDelay, forwardLoss, returnLoss, linkSpeed);
+    printf("Main:   sender W = %d, RTT %.3f sec, loss %g / %g, link %d Mbps\n", senderWindow, propagationDelay, forwardLoss, returnLoss, linkSpeed);
 
     // initialize dword buffer
     uint64_t dwordBufSize = (uint64_t)1 << power;
@@ -133,27 +133,28 @@ int main(int argc, char *argv[])
         break;
     }
 
-    // send loop
-    char *charBuf = (char *)dwordBuf;
-    uint64_t byteBufferSize = dwordBufSize << 2;
+    // TODO: uncomment for part 2
+    //// send loop
+    //char *charBuf = (char *)dwordBuf;
+    //uint64_t byteBufferSize = dwordBufSize << 2;
 
-    uint64_t off = 0; // current position in buffer
-    while (off < byteBufferSize)
-    {
-        // decide the size of next chunk
-        int bytes = std::min((byteBufferSize - off), (uint64_t)(MAX_PKT_SIZE - sizeof(SenderDataHeader)));
-        // send chunk into socket
-        if ((status = ss.Send(charBuf + off, bytes)) != STATUS_OK) {
-            printf("send failed with status %d\n", status);
-            delete[] dwordBuf;
-            #ifdef _WIN32
-            cleanUpWinsock();
-            #endif
-            exit(EXIT_FAILURE);
-        }
-        // error handing: print status and quit
-        off += bytes;
-    } 
+    //uint64_t off = 0; // current position in buffer
+    //while (off < byteBufferSize)
+    //{
+    //    // decide the size of next chunk
+    //    int bytes = std::min((byteBufferSize - off), (uint64_t)(MAX_PKT_SIZE - sizeof(SenderDataHeader)));
+    //    // send chunk into socket
+    //    if ((status = ss.Send(charBuf + off, bytes)) != STATUS_OK) {
+    //        // error handing: print status and quit
+    //        printf("send failed with status %d\n", status);
+    //        delete[] dwordBuf;
+    //        #ifdef _WIN32
+    //        cleanUpWinsock();
+    //        #endif
+    //        exit(EXIT_FAILURE);
+    //    }
+    //    off += bytes;
+    //} 
 
     // close connection
     status = ss.Close();
