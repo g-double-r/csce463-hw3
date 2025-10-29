@@ -213,10 +213,10 @@ int SenderSocket::Close()
 {
     // TODO: sends FIN and receieves FIN-ACK
     // prepare packet to send
-    SenderSynHeader ssh;
-    ssh.sdh.flags.FIN = 1;
-    ssh.sdh.flags.reserved = 0;
-    ssh.sdh.seq = 0;
+    SenderDataHeader sdh;
+    sdh.flags.FIN = 1;
+    sdh.flags.reserved = 0;
+    sdh.seq = 0;
 
     // error check
     sockaddr_in zeroAddr;
@@ -228,7 +228,7 @@ int SenderSocket::Close()
     // send
     // declare struct directly and read into it
     // sizeof sendersynheader when sending
-    SenderSynHeader sshRecv;
+    SenderDataHeader sdhRecv;
     sockaddr_in response;
     socklen_t respLen = sizeof(response);
     int count = 0;
@@ -237,9 +237,9 @@ int SenderSocket::Close()
     {
         // send request to server
         double start = getElapsedTime();
-        printf("[%.3f]  --> FIN %u (attempt %d of %d, RTO %.3f)\n", start, ssh.sdh.seq, count + 1, maxAttempsFIN, RTO);
+        printf("[%.3f]  --> FIN %u (attempt %d of %d, RTO %.3f)\n", start, sdh.seq, count + 1, maxAttempsFIN, RTO);
 
-        if (sendto(sock, (char *)(&ssh), sizeof(SenderSynHeader), 0, (sockaddr *)&remote, sizeof(remote)) == SOCKET_ERROR)
+        if (sendto(sock, (char *)(&sdh), sizeof(SenderSynHeader), 0, (sockaddr *)&remote, sizeof(remote)) == SOCKET_ERROR)
         {
             printf("[%.3f]  --> failed with %d on sendto()\n", getElapsedTime(), WSAGetLastError());
             return FAILED_SEND;
@@ -264,7 +264,7 @@ int SenderSocket::Close()
         int available = select(nfds, &fd, NULL, NULL, &timeout);
         if (available > 0)
         {
-            int bytes = recvfrom(sock, (char *)(&sshRecv), sizeof(SenderSynHeader), 0, (sockaddr *)&response, &respLen);
+            int bytes = recvfrom(sock, (char *)(&sdhRecv), sizeof(SenderSynHeader), 0, (sockaddr *)&response, &respLen);
             if (bytes == SOCKET_ERROR)
             {
                 printf("[%.3f]  <-- failed with %d on recvfrom()\n", getElapsedTime(), WSAGetLastError());
@@ -274,14 +274,14 @@ int SenderSocket::Close()
 
             // parse sdh
             // !! window size is always one for part 1
-            if (sshRecv.sdh.flags.FIN != 1 || sshRecv.sdh.flags.ACK != 1)
+            if (sdhRecv.flags.FIN != 1 || sdhRecv.flags.ACK != 1)
             {
                 printf("FIN-ACK not acknowledged!\n");
                 exit(EXIT_FAILURE);
             }
             double end = getElapsedTime();
             // TODO: change window afer part1
-            printf("[%.3f]  <-- FIN-ACK %u window 0\n", end, ssh.sdh.seq);
+            printf("[%.3f]  <-- FIN-ACK %u window 0\n", end, sdh.seq);
             return STATUS_OK;
         }
         else if (available == SOCKET_ERROR)
