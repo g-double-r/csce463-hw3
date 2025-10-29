@@ -151,7 +151,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
             int bytes = recvfrom(sock, (char *)(&sshRecv), sizeof(SenderSynHeader), 0, (sockaddr *)&response, &respLen);
             if (bytes == SOCKET_ERROR)
             {
-                printf("[%.3f]  --> failed with %d on recvfrom()\n", getElapsedTime(), WSAGetLastError());
+                printf("[%.3f]  <-- failed with %d on recvfrom()\n", getElapsedTime(), WSAGetLastError());
                 return FAILED_RECV;
                 // exit(EXIT_FAILURE);
             }
@@ -172,7 +172,8 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
         }
         else if (available == SOCKET_ERROR)
         {
-            printf("[%.3f]  --> failed with %d on select()\n", getElapsedTime(), WSAGetLastError());
+            printf("[%.3f]  <-- failed with %d on select()\n", getElapsedTime(), WSAGetLastError());
+            exit(EXIT_FAILURE);
         }
         else if (available == 0)
         {
@@ -182,7 +183,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
         }
         else
         {
-            printf("[%.3f]  --> failed with other error %d\n", getElapsedTime(), WSAGetLastError());
+            printf("[%.3f]  <-- failed with other error %d\n", getElapsedTime(), WSAGetLastError());
             exit(EXIT_FAILURE);
         }
         ++count;
@@ -266,7 +267,7 @@ int SenderSocket::Close()
             int bytes = recvfrom(sock, (char *)(&sshRecv), sizeof(SenderSynHeader), 0, (sockaddr *)&response, &respLen);
             if (bytes == SOCKET_ERROR)
             {
-                printf("[%.3f]  --> failed with %d on recvfrom()\n", getElapsedTime(), WSAGetLastError());
+                printf("[%.3f]  <-- failed with %d on recvfrom()\n", getElapsedTime(), WSAGetLastError());
                 return FAILED_RECV;
                 // exit(EXIT_FAILURE);
             }
@@ -280,12 +281,13 @@ int SenderSocket::Close()
             }
             double end = getElapsedTime();
             // TODO: change window afer part1
-            printf("[%.3f]  <-- FYN-ACK %u window 0\n", end, ssh.sdh.seq);
+            printf("[%.3f]  <-- FIN-ACK %u window 0\n", end, ssh.sdh.seq);
             return STATUS_OK;
         }
         else if (available == SOCKET_ERROR)
         {
-            printf("[%.3f]  --> failed with %d on select()\n", getElapsedTime(), WSAGetLastError());
+            printf("[%.3f]  <-- failed with %d on select()\n", getElapsedTime(), WSAGetLastError());
+            exit(EXIT_FAILURE);
         }
         else if (available == 0)
         {
@@ -295,7 +297,7 @@ int SenderSocket::Close()
         }
         else
         {
-            printf("[%.3f]  --> failed with other error %d\n", getElapsedTime(), WSAGetLastError());
+            printf("[%.3f]  <-- failed with other error %d\n", getElapsedTime(), WSAGetLastError());
             exit(EXIT_FAILURE);
         }
         ++count;

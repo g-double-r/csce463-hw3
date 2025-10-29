@@ -157,13 +157,13 @@ int main(int argc, char *argv[])
     //} 
 
     // close connection
+    secs = duration_cast<duration<double>>(high_resolution_clock::now() - start).count();
     status = ss.Close();
     if (status != STATUS_OK)
     {
         printf("close failed with status %d\n", status);
         exit(EXIT_FAILURE);
     }
-    secs = duration_cast<duration<double>>(high_resolution_clock::now() - start).count();
     printf("Main:   transfer finished in %.3f sec\n", secs);
 
 #ifdef _WIN32
