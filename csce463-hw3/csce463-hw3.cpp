@@ -15,7 +15,7 @@ using std::chrono::high_resolution_clock;
 using std::chrono::milliseconds;
 
 #ifdef _WIN32
-void initializeWinsock()
+static void initializeWinsock()
 {
     WSADATA wsaData;
 
@@ -29,7 +29,7 @@ void initializeWinsock()
     }
 }
 
-void cleanUpWinsock()
+static void cleanUpWinsock()
 {
     // call cleanup when done with everything and ready to exit program
     WSACleanup();
