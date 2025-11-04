@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
     while (off < byteBufferSize)
     {
         // decide the size of next chunk
-        int bytes = std::min((byteBufferSize - off), (uint64_t)(MAX_PKT_SIZE - sizeof(SenderDataHeader)));
+        int bytes = (int)min((byteBufferSize - off), (uint64_t)(MAX_PKT_SIZE - sizeof(SenderDataHeader)));
         // send chunk into socket
         if ((status = ss.Send(charBuf + off, bytes)) != STATUS_OK)
         {

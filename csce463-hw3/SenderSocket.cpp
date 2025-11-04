@@ -6,6 +6,8 @@ using std::chrono::duration_cast;
 using std::chrono::high_resolution_clock;
 using std::chrono::milliseconds;
 using std::chrono::steady_clock;
+using std::mutex;
+using std::lock_guard;
 
 SenderSocket::SenderSocket()
 {
@@ -66,7 +68,7 @@ double SenderSocket::getElapsedTime()
 
 double SenderSocket::curRTO()
 {
-    return (estRTT + 4 * std::max(devRTT, 0.01));
+    return (estRTT + 4 * max(devRTT, 0.01));
 }
 
 int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkProperties *linkProperties)
@@ -74,11 +76,12 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     // TODO: sends SYN and receives SYN-ACK
     // send a packet with syn set to 1
     // should recv with syn and ack both to 1
+    buffer = new Packet[senderWindow];
     window = senderWindow;
     empty = CreateSemaphore(NULL, window, window, NULL);
     full = CreateSemaphore(NULL, 0, window, NULL);
 
-    RTO = std::max(1.0, (double)(2 * linkProperties->RTT));
+    RTO = max(1.0, (double)(2 * linkProperties->RTT));
     estRTT = linkProperties->RTT;
 
     // error check for already open
@@ -217,9 +220,41 @@ int SenderSocket::sendPacket(const char *buf, int &bytes)
     return STATUS_OK;
 }
 
+void SenderSocket::worker() {
+
+}
+
 int SenderSocket::Send(char *buf, int bytes)
 {
-    // TODO: ask about RTO = estRTT + 4 * max (devRTT, 0.010);
+    // follow the picture from class
+    DWORD result = WaitForSingleObject(empty, INFINITE);
+    if (result == WAIT_FAILED || result == WAIT_ABANDONED) {
+        printf("WaitForSingleObject() failed with %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+
+    {
+        lock_guard<mutex> lg(mtx);
+        // build packet
+        int pktSize = bytes + sizeof(SenderDataHeader);
+        Packet* pkt = buffer + (seqNum % window);
+        SenderDataHeader sdh;
+        sdh.seq = seqNum;
+        memcpy(pkt->pkt, &sdh, sizeof(SenderDataHeader));
+        memcpy(pkt->pkt + sizeof(SenderDataHeader), buf, bytes);
+        pkt->size = pktSize;
+        pkt->txTime = clock();
+    }
+
+    result = ReleaseSemaphore(full, 1, NULL);
+    if (result == 0) {
+        printf("ReleaseSemaphore() failed with %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+
+    ++seqNum;
+
+    // at the very end we make the worker and call the fucntion
 
     
 

@@ -11,6 +11,7 @@
 #include <chrono>
 #include <vector>
 #include <mutex>
+#include <thread>
 
 // CONSTANTS
 #define MAGIC_PORT 22345		 // receiver listens on this port
@@ -25,6 +26,12 @@
 #define TIMEOUT 5			// timeout after all retx attempts are exhausted
 #define FAILED_RECV 6		// recvfrom() failed in kernel
 
+struct Packet {
+	// int type; // SYN, FIN, data
+	int size; // bytes in packet data
+	clock_t txTime; // transmission time
+	char pkt[MAX_PKT_SIZE]; // packet with header
+};
 class SenderSocket
 {
 private:
@@ -41,8 +48,9 @@ private:
 	// semaphores
 	HANDLE empty;
 	HANDLE full;
-	// first is the data, second is the rto
-	std::vector<std::pair<std::vector<char>, double>> buffer;
+
+	// buffer
+	Packet* buffer;
 	std::mutex mtx;
 
 	// stats variables
@@ -53,12 +61,12 @@ private:
 	int currentWindow = 0;
 	double goodput = 0.0;
 	double estRTT;
-	double devRTT = 0.05;
-	// TODO: update after part1
+	double devRTT;
 	void closeSocket();
 	double getElapsedTime();
 	double curRTO();
 	int sendPacket(const char *buf, int &bytes);
+	void worker();
 
 public:
 	SenderSocket();

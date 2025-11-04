@@ -9,7 +9,6 @@
 
 // add headers that you want to pre-compile here
 	#define _WINSOCK_DEPRECATED_NO_WARNINGS
-	#define NOMINMAX
 	#include <WinSock2.h>
 	#include <WS2tcpip.h>
 	#include <windows.h>
@@ -22,6 +21,5 @@
 #include <cstdint>
 #include <cstdlib>
 #include <chrono>
-#include <algorithm>
 
 #endif //PCH_H
