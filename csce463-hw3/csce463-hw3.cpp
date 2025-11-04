@@ -103,30 +103,30 @@ int main(int argc, char *argv[])
     case INVALID_NAME:
         printf("connect failed with status %d\n", status);
         delete[] dwordBuf;
-        #ifdef _WIN32
+#ifdef _WIN32
         cleanUpWinsock();
-        #endif
+#endif
         exit(EXIT_FAILURE);
     case FAILED_SEND:
         printf("connect failed with status %d\n", status);
         delete[] dwordBuf;
-        #ifdef _WIN32
+#ifdef _WIN32
         cleanUpWinsock();
-        #endif
+#endif
         exit(EXIT_FAILURE);
     case FAILED_RECV:
         printf("connect failed with status %d\n", status);
         delete[] dwordBuf;
-        #ifdef _WIN32
+#ifdef _WIN32
         cleanUpWinsock();
-        #endif
+#endif
         exit(EXIT_FAILURE);
     case TIMEOUT:
         printf("connect failed with status %d\n", status);
         delete[] dwordBuf;
-        #ifdef _WIN32
+#ifdef _WIN32
         cleanUpWinsock();
-        #endif
+#endif
         exit(EXIT_FAILURE);
     default:
         printf("connected to %s in %.3f sec, pkt size %d bytes\n", targetHost, secs, MAX_PKT_SIZE);
@@ -134,27 +134,28 @@ int main(int argc, char *argv[])
     }
 
     // TODO: uncomment for part 2
-    //// send loop
-    //char *charBuf = (char *)dwordBuf;
-    //uint64_t byteBufferSize = dwordBufSize << 2;
+    // send loop
+    char *charBuf = (char *)dwordBuf;
+    uint64_t byteBufferSize = dwordBufSize << 2;
 
-    //uint64_t off = 0; // current position in buffer
-    //while (off < byteBufferSize)
-    //{
-    //    // decide the size of next chunk
-    //    int bytes = std::min((byteBufferSize - off), (uint64_t)(MAX_PKT_SIZE - sizeof(SenderDataHeader)));
-    //    // send chunk into socket
-    //    if ((status = ss.Send(charBuf + off, bytes)) != STATUS_OK) {
-    //        // error handing: print status and quit
-    //        printf("send failed with status %d\n", status);
-    //        delete[] dwordBuf;
-    //        #ifdef _WIN32
-    //        cleanUpWinsock();
-    //        #endif
-    //        exit(EXIT_FAILURE);
-    //    }
-    //    off += bytes;
-    //} 
+    uint64_t off = 0; // current position in buffer
+    while (off < byteBufferSize)
+    {
+        // decide the size of next chunk
+        int bytes = std::min((byteBufferSize - off), (uint64_t)(MAX_PKT_SIZE - sizeof(SenderDataHeader)));
+        // send chunk into socket
+        if ((status = ss.Send(charBuf + off, bytes)) != STATUS_OK)
+        {
+            // error handing: print status and quit
+            printf("send failed with status %d\n", status);
+            delete[] dwordBuf;
+#ifdef _WIN32
+            cleanUpWinsock();
+#endif
+            exit(EXIT_FAILURE);
+        }
+        off += bytes;
+    }
 
     // close connection
     secs = duration_cast<duration<double>>(high_resolution_clock::now() - start).count();

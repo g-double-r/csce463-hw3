@@ -64,11 +64,22 @@ double SenderSocket::getElapsedTime()
     return duration_cast<duration<double>>(elapsedTime).count();
 }
 
+double SenderSocket::curRTO()
+{
+    return (estRTT + 4 * std::max(devRTT, 0.01));
+}
+
 int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkProperties *linkProperties)
 {
     // TODO: sends SYN and receives SYN-ACK
     // send a packet with syn set to 1
     // should recv with syn and ack both to 1
+    window = senderWindow;
+    empty = CreateSemaphore(NULL, window, window, NULL);
+    full = CreateSemaphore(NULL, 0, window, NULL);
+
+    RTO = std::max(1.0, (double)(2 * linkProperties->RTT));
+    estRTT = linkProperties->RTT;
 
     // error check for already open
     sockaddr_in zeroAddr;
@@ -81,9 +92,8 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     // prepare packet to send
     SenderSynHeader ssh;
     ssh.sdh.flags.SYN = 1;
-    ssh.sdh.flags.reserved = 0;
     memcpy(&ssh.lp, linkProperties, sizeof(LinkProperties));
-    ssh.sdh.seq = 0;
+    ssh.sdh.seq = seqNum;
 
     // locate destination
     remote.sin_family = AF_INET;
@@ -134,13 +144,13 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
         // prepare to receive
         // TODO: tie to RTO?
         timeval timeout;
-        #ifdef __APPLE__
+#ifdef __APPLE__
         timeout.tv_sec = (time_t)RTO;
         timeout.tv_usec = (suseconds_t)((RTO - timeout.tv_sec) * 1e6);
-        #else
+#else
         timeout.tv_sec = (long)RTO;
         timeout.tv_usec = (long)((RTO - timeout.tv_sec) * 1e6);
-        #endif
+#endif
         fd_set fd;
         FD_ZERO(&fd);      // clear the set
         FD_SET(sock, &fd); // add your socket to the set
@@ -197,26 +207,138 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     return STATUS_OK;
 }
 
+int SenderSocket::sendPacket(const char *buf, int &bytes)
+{
+    if (sendto(sock, buf, bytes, 0, (sockaddr *)&remote, sizeof(remote)) == SOCKET_ERROR)
+    {
+        return FAILED_SEND;
+    }
+
+    return STATUS_OK;
+}
+
 int SenderSocket::Send(char *buf, int bytes)
 {
-    sockaddr_in zeroAddr;
-    memset(&zeroAddr, 0, sizeof(zeroAddr));
-    if (memcmp(&zeroAddr, &remote, sizeof(sockaddr_in)) == 0)
-    {
-        return NOT_CONNECTED;
-    }
+    // TODO: ask about RTO = estRTT + 4 * max (devRTT, 0.010);
+
+    
+
+//     // stitch SDH + packet
+//     // keep track of sequence numbers
+//     sockaddr_in zeroAddr;
+//     memset(&zeroAddr, 0, sizeof(zeroAddr));
+//     if (memcmp(&zeroAddr, &remote, sizeof(sockaddr_in)) == 0)
+//     {
+//         return NOT_CONNECTED;
+//     }
+
+//     // build packet
+//     int pktSize = bytes + sizeof(SenderDataHeader);
+//     char *pkt = new char[pktSize];
+//     SenderDataHeader *sdh = (SenderDataHeader *)(pkt);
+//     sdh->seq = nextSeqNum;
+//     memcpy((pkt + sizeof(SenderDataHeader)), buf, bytes);
+
+//     // send once and start timer
+//     if (sendPacket(pkt, pktSize) != STATUS_OK)
+//     {
+//         printf("failed with %d on sendto()\n", WSAGetLastError());
+//         delete[] pkt;
+//         return FAILED_SEND;
+//     }
+//     RTO = curRTO();
+//     auto sendTime = steady_clock::now();
+//     state = (nextSeqNum == 0) ? SendState::WAIT_ACK_0 : SendState::WAIT_ACK_1;
+
+//     // sequence number are 4 bytes in len
+//     char recvBuf[4];
+//     sockaddr_in response;
+//     socklen_t respLen = sizeof(response);
+//     int count = 0;
+//     int nfds = (int)(sock + 1);
+//     while (true)
+//     {
+//         // prepare to receive
+//         timeval timeout;
+// #ifdef __APPLE__
+//         timeout.tv_sec = (time_t)RTO;
+//         timeout.tv_usec = (suseconds_t)((RTO - timeout.tv_sec) * 1e6);
+// #else
+//         timeout.tv_sec = (long)RTO;
+//         timeout.tv_usec = (long)((RTO - timeout.tv_sec) * 1e6);
+// #endif
+//         fd_set fd;
+//         FD_ZERO(&fd);      // clear the set
+//         FD_SET(sock, &fd); // add your socket to the set
+
+//         int available = select(nfds, &fd, NULL, NULL, &timeout);
+//         if (available > 0)
+//         {
+//             int bytes = recvfrom(sock, recvBuf, 4, 0, (sockaddr *)&response, &respLen);
+//             if (bytes == SOCKET_ERROR)
+//             {
+//                 printf("failed with %d on recvfrom()\n", WSAGetLastError());
+//                 delete[] pkt;
+//                 return FAILED_RECV;
+//             }
+
+//             // extract seq number
+//             DWORD seqNum = 0;
+//             memcpy(&seqNum, recvBuf, sizeof(DWORD));
+//             if (seqNum == nextSeqNum)
+//             {
+//                 // compute new RTT estimate per slides
+//                 double sample = duration<double>(high_resolution_clock::now() - sendTime).count();
+//                 const double alpha = 0.125, beta = 0.25;
+//                 estRTT = (1 - alpha) * estRTT + (alpha * sample);
+//                 devRTT = (1 - beta) * devRTT + (beta * std::fabs(sample = estRTT));
+
+//                 // update global RTO
+//                 RTO = curRTO();
+//                 nextSeqNum ^= 1; // this flips the LSB from 0 to 1 and back since we only deal with those two for this part
+//                 state = (nextSeqNum == 0) ? SendState::WAIT_CALL_0 : SendState::WAIT_CALL_1;
+//                 delete[] pkt;
+//                 return STATUS_OK;
+//             }
+//         }
+//         else if (available == SOCKET_ERROR)
+//         {
+//             printf("failed with %d on select()\n", WSAGetLastError());
+//             delete[] pkt;
+//             exit(EXIT_FAILURE);
+//         }
+//         else if (available == 0)
+//         {
+//             // timeout, fast retx
+//             if (sendPacket(pkt, pktSize) != STATUS_OK)
+//             {
+//                 printf("failed with %d on sendto()\n", WSAGetLastError());
+//                 delete[] pkt;
+//                 return FAILED_SEND;
+//             }
+//             RTO = curRTO();
+//             continue;
+//         }
+//         else
+//         {
+//             printf("failed with other error %d\n", WSAGetLastError());
+//             delete[] pkt;
+//             exit(EXIT_FAILURE);
+//         }
+//     }
 
     return 0;
 }
 
 int SenderSocket::Close()
 {
+
+    // TODO: call threads to die
     // TODO: sends FIN and receieves FIN-ACK
     // prepare packet to send
     SenderDataHeader sdh;
     sdh.flags.FIN = 1;
-    sdh.flags.reserved = 0;
-    sdh.seq = 0;
+    sdh.seq = seqNum;
 
     // error check
     sockaddr_in zeroAddr;
@@ -250,13 +372,13 @@ int SenderSocket::Close()
         // prepare to receive
         // TODO: tie to RTO?
         timeval timeout;
-        #ifdef __APPLE__
+#ifdef __APPLE__
         timeout.tv_sec = (time_t)RTO;
         timeout.tv_usec = (suseconds_t)((RTO - timeout.tv_sec) * 1e6);
-        #else
+#else
         timeout.tv_sec = (long)RTO;
         timeout.tv_usec = (long)((RTO - timeout.tv_sec) * 1e6);
-        #endif
+#endif
         fd_set fd;
         FD_ZERO(&fd);      // clear the set
         FD_SET(sock, &fd); // add your socket to the set

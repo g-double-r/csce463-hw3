@@ -29,12 +29,15 @@
 	#define NOMINMAX
 	#include <WinSock2.h>
 	#include <WS2tcpip.h>
+	#include <windows.h>
 	#pragma comment(lib, "Ws2_32.lib")
 #endif
 
 #include "SenderSocket.h"
 #include "PacketHeaders.h"
+#include "checksum.h"
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <chrono>
 #include <algorithm>

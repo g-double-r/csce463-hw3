@@ -1,30 +1,33 @@
 #pragma once
 
 #ifdef __APPLE__
-	#include <errno.h>
-	#include <sys/socket.h>
-	#include <netinet/in.h>
-	#include <arpa/inet.h>
-	#include <sys/select.h>
-	#include <sys/time.h>
-	#include <sys/types.h>
-	#include <unistd.h>
-	#include <netdb.h>
-	#define WSAGetLastError() (errno)
-	#define WSACleanup() ((void)0)
-	typedef int SOCKET;
-	typedef uint32_t DWORD;
-	#define INVALID_SOCKET (-1)
-	#define SOCKET_ERROR (-1)
+#include <errno.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/select.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <netdb.h>
+#define WSAGetLastError() (errno)
+#define WSACleanup() ((void)0)
+typedef int SOCKET;
+typedef uint32_t DWORD;
+#define INVALID_SOCKET (-1)
+#define SOCKET_ERROR (-1)
 #else
-	#define _WINSOCK_DEPRECATED_NO_WARNINGS
-	#include <WinSock2.h>
-	#include <WS2tcpip.h>
-	#pragma comment(lib, "Ws2_32.lib")
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+#include <windows.h>
+#pragma comment(lib, "Ws2_32.lib")
 #endif
 
 #include "PacketHeaders.h"
 #include <chrono>
+#include <vector>
+#include <mutex>
 
 // CONSTANTS
 #define MAGIC_PORT 22345		 // receiver listens on this port
@@ -46,13 +49,33 @@ private:
 	sockaddr_in local;
 	sockaddr_in remote;
 	std::chrono::steady_clock::time_point constructedTime;
-	double RTO = 1;
+	double RTO;
+	int window;
+	int seqNum = 0;
+	int nextToSend = 0;
 	int maxAttempsSYN = 3;
 	int maxAttempsFIN = 5;
+	// semaphores
+	HANDLE empty;
+	HANDLE full;
+	// first is the data, second is the rto
+	std::vector<std::pair<std::vector<char>, double>> buffer;
+	std::mutex mtx;
+
+	// stats variables
+	int senderBase = 0;
+	double mb = 0.0;
+	int timeoutCount = 0;
+	int fastRetx = 0;
+	int currentWindow = 0;
+	double goodput = 0.0;
+	double estRTT;
+	double devRTT = 0.05;
 	// TODO: update after part1
-	// short window = 1;
 	void closeSocket();
 	double getElapsedTime();
+	double curRTO();
+	int sendPacket(const char *buf, int &bytes);
 
 public:
 	SenderSocket();

@@ -1,13 +1,15 @@
 #pragma once
 
+#include <cstdint>
+#include <cstring>
+
 #ifdef _WIN32
     #include <WinSock2.h>
     #include <WS2tcpip.h>
     #pragma comment(lib, "Ws2_32.lib")
 #else
-    typedef u_int32_t DWORD;
+    typedef uint32_t DWORD;
 #endif
-#include <cstring>
 
 // CONSTANTS
 #define FORWARD_PATH 0
