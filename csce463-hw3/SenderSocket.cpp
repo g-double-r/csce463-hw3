@@ -58,6 +58,7 @@ void SenderSocket::closeSocket()
 SenderSocket::~SenderSocket()
 {
     closeSocket();
+    delete[] buffer;
 }
 
 double SenderSocket::getElapsedTime()
@@ -80,6 +81,13 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     window = senderWindow;
     empty = CreateSemaphore(NULL, window, window, NULL);
     full = CreateSemaphore(NULL, 0, window, NULL);
+
+    socketReceieveReady = CreateEvent(NULL, false, false, NULL);
+    long networkMask = FD_READ | FD_CLOSE;
+    int r = WSAEventSelect(sock, socketReceieveReady, networkMask);
+    if (r == SOCKET_ERROR) {
+        
+    }
 
     RTO = max(1.0, (double)(2 * linkProperties->RTT));
     estRTT = linkProperties->RTT;
@@ -221,7 +229,13 @@ int SenderSocket::sendPacket(const char *buf, int &bytes)
 }
 
 void SenderSocket::WorkerRun() {
+    HANDLE events[] = {socketReceieveReady, full};
+}
 
+void SenderSocket::Recv() {
+    while (true) {
+        ReceiverHeader rh;
+    }
 }
 
 int SenderSocket::Send(char *buf, int bytes)

@@ -49,6 +49,8 @@ private:
 	// semaphores
 	HANDLE empty;
 	HANDLE full;
+	HANDLE socketRecieveReady;
+	HANDLE full;
 
 	// buffer
 	Packet* buffer;
@@ -68,6 +70,7 @@ private:
 	double curRTO();
 	int sendPacket(const char *buf, int &bytes);
 	void WorkerRun();
+	void Recv();
 
 public:
 	SenderSocket();
