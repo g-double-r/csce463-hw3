@@ -26,7 +26,8 @@
 #define TIMEOUT 5			// timeout after all retx attempts are exhausted
 #define FAILED_RECV 6		// recvfrom() failed in kernel
 
-struct Packet {
+class Packet {
+public:
 	// int type; // SYN, FIN, data
 	int size; // bytes in packet data
 	clock_t txTime; // transmission time
@@ -66,7 +67,7 @@ private:
 	double getElapsedTime();
 	double curRTO();
 	int sendPacket(const char *buf, int &bytes);
-	void worker();
+	void WorkerRun();
 
 public:
 	SenderSocket();

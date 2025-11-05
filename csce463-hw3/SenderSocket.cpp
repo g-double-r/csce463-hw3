@@ -220,7 +220,7 @@ int SenderSocket::sendPacket(const char *buf, int &bytes)
     return STATUS_OK;
 }
 
-void SenderSocket::worker() {
+void SenderSocket::WorkerRun() {
 
 }
 
