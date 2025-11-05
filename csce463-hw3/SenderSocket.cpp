@@ -8,6 +8,7 @@ using std::chrono::milliseconds;
 using std::chrono::steady_clock;
 using std::mutex;
 using std::lock_guard;
+using std::thread;
 
 SenderSocket::SenderSocket()
 {
@@ -19,6 +20,9 @@ SenderSocket::SenderSocket()
         WSACleanup();
         exit(EXIT_FAILURE);
     }
+    // set nonblocking
+    u_long one = 1;
+    ioctlsocket(sock, FIONBIO, &one);
 
     memset(&local, 0, sizeof(local));
     local.sin_family = AF_INET;
@@ -82,11 +86,12 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     empty = CreateSemaphore(NULL, window, window, NULL);
     full = CreateSemaphore(NULL, 0, window, NULL);
 
-    socketReceieveReady = CreateEvent(NULL, false, false, NULL);
+    socketReceiveReady = CreateEvent(NULL, false, false, NULL);
     long networkMask = FD_READ | FD_CLOSE;
-    int r = WSAEventSelect(sock, socketReceieveReady, networkMask);
+    int r = WSAEventSelect(sock, socketReceiveReady, networkMask);
     if (r == SOCKET_ERROR) {
-        
+        printf("WSAEventSelect() failed with %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
     }
 
     RTO = max(1.0, (double)(2 * linkProperties->RTT));
@@ -123,11 +128,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     }
     else
     {
-#ifdef _WIN32
         remote.sin_addr.S_un.S_addr = IP;
-#else
-        remote.sin_addr.s_addr = IP;
-#endif
     }
 
     // send
@@ -155,13 +156,8 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
         // prepare to receive
         // TODO: tie to RTO?
         timeval timeout;
-#ifdef __APPLE__
-        timeout.tv_sec = (time_t)RTO;
-        timeout.tv_usec = (suseconds_t)((RTO - timeout.tv_sec) * 1e6);
-#else
         timeout.tv_sec = (long)RTO;
         timeout.tv_usec = (long)((RTO - timeout.tv_sec) * 1e6);
-#endif
         fd_set fd;
         FD_ZERO(&fd);      // clear the set
         FD_SET(sock, &fd); // add your socket to the set
@@ -189,6 +185,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
             RTO = (3 * delta);
             // TODO: change window afer part1
             printf("[%.3f]  <-- SYN-ACK %u window 1; setting initial RTO to %.3f\n", end, ssh.sdh.seq, RTO);
+            worker = thread(&SenderSocket::WorkerRun, this);
             return STATUS_OK;
         }
         else if (available == SOCKET_ERROR)
@@ -214,27 +211,62 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     {
         return TIMEOUT;
     }
-
     return STATUS_OK;
 }
 
-int SenderSocket::sendPacket(const char *buf, int &bytes)
+void SenderSocket::sendPacket(const char *buf, const int &bytes)
 {
     if (sendto(sock, buf, bytes, 0, (sockaddr *)&remote, sizeof(remote)) == SOCKET_ERROR)
     {
-        return FAILED_SEND;
+        printf("sendto() failed with %d\n", WSAGetLastError());
     }
-
-    return STATUS_OK;
 }
 
 void SenderSocket::WorkerRun() {
-    HANDLE events[] = {socketReceieveReady, full};
+    while (true) {
+        DWORD result = WaitForSingleObject(full, INFINITE);
+        if (result == WAIT_FAILED || result == WAIT_ABANDONED) {
+            printf("WaitForSingleObject() failed with %d\n", WSAGetLastError());
+            exit(EXIT_FAILURE);
+        }
+        do {
+            // prepare to send
+            Packet& pkt = buffer[nextToSend % window];
+            sendPacket(pkt.pkt, pkt.size);
+            printf("sent packet with seq %d\n", nextToSend);
+            ++nextToSend;
+        } while (WaitForSingleObject(full, 0) == WAIT_OBJECT_0);
+        // recv
+        recvPacket();
+    }
 }
 
-void SenderSocket::Recv() {
+void SenderSocket::recvPacket() {
     while (true) {
         ReceiverHeader rh;
+        int bytes = recvfrom(sock, (char*)(&rh), sizeof(ReceiverHeader), 0, NULL, NULL);
+        if (bytes == SOCKET_ERROR) {
+            int e = WSAGetLastError();
+            if (e == WSAEWOULDBLOCK) break;
+            printf("recvfrom() failed with %d\n", WSAGetLastError());
+            exit(EXIT_FAILURE);
+        }
+
+        DWORD ack = rh.ackSeq;
+
+        printf("received packet with seq %d\n", ack-1);
+
+        if (ack > senderBase) {
+            DWORD newlyAcked = ack - senderBase;
+
+            senderBase = ack;
+
+            if (!ReleaseSemaphore(empty, newlyAcked, NULL)) {
+                printf("ReleaseSemaphore() failed with %d\n", WSAGetLastError());
+                exit(EXIT_FAILURE);
+            }
+        }
+
     }
 }
 

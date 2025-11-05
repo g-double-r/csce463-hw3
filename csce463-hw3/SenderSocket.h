@@ -40,24 +40,27 @@ private:
 	sockaddr_in local;
 	sockaddr_in remote;
 	std::chrono::steady_clock::time_point constructedTime;
+	std::thread worker;
+	std::thread stats;
 	double RTO;
 	int window;
+	int senderBase = 0;
+	int produced = 0;
 	int seqNum = 0;
 	int nextToSend = 0;
 	int maxAttempsSYN = 3;
 	int maxAttempsFIN = 5;
+	double timerExpire = 0.0;
 	// semaphores
 	HANDLE empty;
 	HANDLE full;
-	HANDLE socketRecieveReady;
-	HANDLE full;
+	HANDLE socketReceiveReady;
 
 	// buffer
 	Packet* buffer;
 	std::mutex mtx;
 
 	// stats variables
-	int senderBase = 0;
 	double mb = 0.0;
 	int timeoutCount = 0;
 	int fastRetx = 0;
@@ -68,9 +71,9 @@ private:
 	void closeSocket();
 	double getElapsedTime();
 	double curRTO();
-	int sendPacket(const char *buf, int &bytes);
+	void sendPacket(const char *buf, const int &bytes);
 	void WorkerRun();
-	void Recv();
+	void recvPacket();
 
 public:
 	SenderSocket();
