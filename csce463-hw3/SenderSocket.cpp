@@ -1,14 +1,8 @@
 #include "SenderSocket.h"
 #include "pch.h"
 
-using std::chrono::duration;
-using std::chrono::duration_cast;
-using std::chrono::high_resolution_clock;
-using std::chrono::milliseconds;
-using std::chrono::steady_clock;
-using std::mutex;
-using std::lock_guard;
-using std::thread;
+using std::chrono::duration, std::chrono::duration_cast, std::chrono::high_resolution_clock,
+      std::chrono::milliseconds, std::chrono::steady_clock, std::mutex, std::lock_guard, std::thread;
 
 SenderSocket::SenderSocket()
 {

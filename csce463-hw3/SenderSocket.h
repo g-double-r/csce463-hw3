@@ -44,7 +44,7 @@ private:
 	std::thread stats;
 	double RTO;
 	int window;
-	int senderBase = 0;
+	DWORD senderBase = 0;
 	int produced = 0;
 	int seqNum = 0;
 	int nextToSend = 0;
