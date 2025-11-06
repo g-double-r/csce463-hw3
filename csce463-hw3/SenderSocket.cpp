@@ -225,10 +225,12 @@ void SenderSocket::WorkerRun() {
         }
         do {
             // prepare to send
-            Packet& pkt = buffer[nextToSend % window];
+            {
+                lock_guard<mutex> lg(mtx);
+            Packet& pkt = buffer[nextToSend++ % window];
             sendPacket(pkt.pkt, pkt.size);
             printf("sent packet with seq %d\n", nextToSend);
-            ++nextToSend;
+            }
         } while (WaitForSingleObject(full, 0) == WAIT_OBJECT_0);
         // recv
         recvPacket();
@@ -248,7 +250,7 @@ void SenderSocket::recvPacket() {
 
         DWORD ack = rh.ackSeq;
 
-        printf("received packet with seq %d\n", ack-1);
+        printf("expecting next seq %d\n", ack);
 
         if (ack > senderBase) {
             DWORD newlyAcked = ack - senderBase;
