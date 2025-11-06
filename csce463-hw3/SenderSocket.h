@@ -26,6 +26,8 @@
 #define TIMEOUT 5			// timeout after all retx attempts are exhausted
 #define FAILED_RECV 6		// recvfrom() failed in kernel
 
+// todo: for stats sleep on event quit with two second timeout
+
 class Packet {
 public:
 	// int type; // SYN, FIN, data
@@ -43,6 +45,11 @@ private:
 	std::thread worker;
 	std::thread stats;
 	double RTO;
+	double estRTT;
+	double devRTT;
+	DWORD timerExpire;
+	boolean recomputeTimerExpire;
+	int baseRetxCount = 0;
 	int window;
 	DWORD senderBase = 0;
 	int produced = 0;
@@ -50,11 +57,11 @@ private:
 	int nextToSend = 0;
 	int maxAttempsSYN = 3;
 	int maxAttempsFIN = 5;
-	double timerExpire = 0.0;
 	// semaphores
 	HANDLE empty;
 	HANDLE full;
 	HANDLE socketReceiveReady;
+	HANDLE eventQuit;
 
 	// buffer
 	Packet* buffer;
@@ -66,11 +73,9 @@ private:
 	int fastRetx = 0;
 	int currentWindow = 0;
 	double goodput = 0.0;
-	double estRTT;
-	double devRTT;
 	void closeSocket();
 	double getElapsedTime();
-	double curRTO();
+	void updateRTO(DWORD RTT);
 	void sendPacket(const char *buf, const int &bytes);
 	void WorkerRun();
 	void recvPacket();
