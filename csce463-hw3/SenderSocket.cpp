@@ -38,19 +38,11 @@ SenderSocket::SenderSocket()
 
 void SenderSocket::closeSocket()
 {
-#ifdef _WIN32
     if (sock != INVALID_SOCKET)
     {
         closesocket(sock);
         sock = INVALID_SOCKET;
     }
-#else
-    if (sock != INVALID_SOCKET)
-    {
-        close(sock);
-        sock = INVALID_SOCKET;
-    }
-#endif
 }
 
 SenderSocket::~SenderSocket()
@@ -189,8 +181,11 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
             // TODO: change window afer part1
             printf("[%.3f]  <-- SYN-ACK %u window 1; setting initial RTO to %.3f\n", end, ssh.sdh.seq, RTO);
             worker = thread(&SenderSocket::WorkerRun, this);
-            // todo : error check
-            ResetEvent(socketReceiveReady);
+
+            if (!ResetEvent(socketReceiveReady)) {
+                printf("ResetEvent() for socketRecieveREady failed with %d\n", WSAGetLastError());
+                exit(EXIT_FAILURE);
+            }
             return STATUS_OK;
         }
         else if (available == SOCKET_ERROR)
@@ -244,6 +239,11 @@ void SenderSocket::WorkerRun() {
         case WAIT_TIMEOUT:
             recomputeTimerExpire = true;
             // resendbase
+            {
+                Packet* pkt = buffer + (senderBase % window);
+                sendPacket(pkt->pkt, pkt->size);
+                printf("resent base packet with seq %d\n", senderBase);
+            }
             ++baseRetxCount;
             break;
         case WAIT_OBJECT_0:
@@ -275,12 +275,18 @@ void SenderSocket::WorkerRun() {
     }
 }
 
+void SenderSocket::StatsRun() {
+    while (WaitForSingleObject(eventQuit, 2000) == WAIT_TIMEOUT) {
+        printf("[ %d] B    %d (  %.1f MB) N    %d T %d F %d W %d S %.3f Mbps RTT %.3f\n",
+                (int)getElapsedTime(), senderBase, mb, nextToSend, timeoutCount, fastRetx,
+                min((DWORD)window, receiverWindow), goodput, estRTT);
+    }
+}
+
 void SenderSocket::recvPacket() {
         ReceiverHeader rh;
         int bytes = recvfrom(sock, (char*)(&rh), sizeof(ReceiverHeader), 0, NULL, NULL);
         if (bytes == SOCKET_ERROR) {
-            int e = WSAGetLastError();
-            //if (e == WSAEWOULDBLOCK) break;
             printf("recvfrom() failed with %d\n", WSAGetLastError());
             exit(EXIT_FAILURE);
         }
@@ -293,10 +299,10 @@ void SenderSocket::recvPacket() {
         }
 
         DWORD ack = rh.ackSeq;
+        receiverWindow = rh.recvWnd;
 
         printf("received ack with seq num %d\n", ack);
 
-        // todo: compute RTT
         Packet* pkt = buffer + ((ack - 1) % window);
         DWORD RTT = clock() - pkt->txTime;
         if (baseRetxCount > 0) {
@@ -379,7 +385,7 @@ int SenderSocket::Close()
     int count = 0;
     int nfds = (int)(sock + 1);
     // todo: quit after max count
-    while (WaitForSingleObject(eventQuit, RTO) == WAIT_TIMEOUT)
+    while (WaitForSingleObject(eventQuit, (DWORD)RTO) == WAIT_TIMEOUT && count < maxAttempsFIN)
     {
         // send request to server
         double start = getElapsedTime();
@@ -392,79 +398,9 @@ int SenderSocket::Close()
             // WSACleanup();
             // exit(EXIT_FAILURE);
         }
+        ++count;
     }
-//
-//        // prepare to receive
-//        // TODO: tie to RTO?
-//        timeval timeout;
-//#ifdef __APPLE__
-//        timeout.tv_sec = (time_t)RTO;
-//        timeout.tv_usec = (suseconds_t)((RTO - timeout.tv_sec) * 1e6);
-//#else
-//        timeout.tv_sec = (long)RTO;
-//        timeout.tv_usec = (long)((RTO - timeout.tv_sec) * 1e6);
-//#endif
-//        fd_set fd;
-//        FD_ZERO(&fd);      // clear the set
-//        FD_SET(sock, &fd); // add your socket to the set
-//
-//        // todo: set up this part only as another loop until timeout expires
-//        // int available = select(nfds, &fd, NULL, NULL, &timeout);
-//        int available = WaitForSingleObject(socketReceiveReady, INFINITE);
-//        // later tie to timeout
-//        if (available == WAIT_OBJECT_0)
-//        {
-//            int bytes = recvfrom(sock, (char *)(&rh), sizeof(ReceiverHeader), 0, (sockaddr *)&response, &respLen);
-//            if (bytes == SOCKET_ERROR)
-//            {
-//                printf("[%.3f]  <-- failed with %d on recvfrom()\n", getElapsedTime(), WSAGetLastError());
-//                return FAILED_RECV;
-//                // exit(EXIT_FAILURE);
-//            }
-//
-//            // parse sdh
-//            // !! window size is always one for part 1
-//            if (rh.flags.FIN != 1 || rh.flags.ACK != 1)
-//            {
-//                printf("FIN-ACK not acknowledged!\n");
-//                printf("SYN: %d, FIN: %d, ACK: %d, seq: %d\n", rh.flags.SYN, rh.flags.FIN, rh.flags.ACK, rh.ackSeq);
-//                // exit(EXIT_FAILURE);
-//                continue;
-//            }
-//            double end = getElapsedTime();
-//            // TODO: change window afer part1
-//            printf("[%.3f]  <-- FIN-ACK %u window %x\n", end, rh.ackSeq, rh.recvWnd);
-//
-//            SetEvent(eventQuit);
-//            if (worker.joinable()) {
-//                worker.join();
-//            }
-//            return STATUS_OK;
-//        }
-//        else if (available == SOCKET_ERROR)
-//        {
-//            printf("[%.3f]  <-- failed with %d on select()\n", getElapsedTime(), WSAGetLastError());
-//            exit(EXIT_FAILURE);
-//        }
-//        else if (available == 0)
-//        {
-//            // printf("failed with connection timeout in 1000ms\n");
-//            ++count;
-//            continue;
-//        }
-//        else
-//        {
-//            printf("[%.3f]  <-- failed with other error %d\n", getElapsedTime(), WSAGetLastError());
-//            exit(EXIT_FAILURE);
-//        }
-//        ++count;
-//    }
-//
-//    if (count == maxAttempsFIN)
-//    {
-//        return TIMEOUT;
-//    }
 
-        worker.join();
+    worker.join();
     return STATUS_OK;
 }

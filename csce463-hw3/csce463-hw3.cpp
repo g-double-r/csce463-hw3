@@ -52,9 +52,8 @@ int main(int argc, char *argv[])
             "    bottleneck_speed      Bottleneck speed in Mbps\n");
         exit(EXIT_FAILURE);
     }
-#ifdef _WIN32
+
     initializeWinsock();
-#endif
 
     // parse command-line parameters
     char *targetHost = argv[1];
@@ -164,9 +163,8 @@ int main(int argc, char *argv[])
     }
     printf("Main:   transfer finished in %.3f sec\n", secs);
 
-#ifdef _WIN32
+
     cleanUpWinsock();
-#endif
 
     delete[] dwordBuf;
     return 0;

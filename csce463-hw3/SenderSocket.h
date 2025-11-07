@@ -71,7 +71,7 @@ private:
 	double mb = 0.0;
 	int timeoutCount = 0;
 	int fastRetx = 0;
-	int currentWindow = 0;
+	DWORD receiverWindow = 0;
 	double goodput = 0.0;
 	void closeSocket();
 	double getElapsedTime();
@@ -79,6 +79,7 @@ private:
 	void sendPacket(const char *buf, const int &bytes);
 	void WorkerRun();
 	void recvPacket();
+	void StatsRun();
 
 public:
 	SenderSocket();
