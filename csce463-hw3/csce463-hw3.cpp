@@ -11,7 +11,6 @@
 
 using std::chrono::duration, std::chrono::duration_cast, std::chrono::high_resolution_clock, std::chrono::milliseconds;
 
-#ifdef _WIN32
 static void initializeWinsock()
 {
     WSADATA wsaData;
@@ -31,7 +30,6 @@ static void cleanUpWinsock()
     // call cleanup when done with everything and ready to exit program
     WSACleanup();
 }
-#endif
 
 int main(int argc, char *argv[])
 {
@@ -99,30 +97,18 @@ int main(int argc, char *argv[])
     case INVALID_NAME:
         printf("connect failed with status %d\n", status);
         delete[] dwordBuf;
-#ifdef _WIN32
-        cleanUpWinsock();
-#endif
         exit(EXIT_FAILURE);
     case FAILED_SEND:
         printf("connect failed with status %d\n", status);
         delete[] dwordBuf;
-#ifdef _WIN32
-        cleanUpWinsock();
-#endif
         exit(EXIT_FAILURE);
     case FAILED_RECV:
         printf("connect failed with status %d\n", status);
         delete[] dwordBuf;
-#ifdef _WIN32
-        cleanUpWinsock();
-#endif
         exit(EXIT_FAILURE);
     case TIMEOUT:
         printf("connect failed with status %d\n", status);
         delete[] dwordBuf;
-#ifdef _WIN32
-        cleanUpWinsock();
-#endif
         exit(EXIT_FAILURE);
     default:
         printf("connected to %s in %.3f sec, pkt size %d bytes\n", targetHost, secs, MAX_PKT_SIZE);
@@ -145,9 +131,7 @@ int main(int argc, char *argv[])
             // error handing: print status and quit
             printf("send failed with status %d\n", status);
             delete[] dwordBuf;
-#ifdef _WIN32
             cleanUpWinsock();
-#endif
             exit(EXIT_FAILURE);
         }
         off += bytes;
@@ -161,7 +145,15 @@ int main(int argc, char *argv[])
         printf("close failed with status %d\n", status);
         exit(EXIT_FAILURE);
     }
-    printf("Main:   transfer finished in %.3f sec\n", secs);
+
+    Checksum cs;
+    DWORD chkSum = cs.CRC32((unsigned char*)dwordBuf, (int)dwordBufSize);
+    double kbps = ((dwordBufSize * 32) / (1e3)) / secs;
+    printf("Main:   transfer finished in %.3f sec, %.2f Kbps, checksum %X\n", secs, kbps, chkSum);
+
+    double estRTT = ss.getEstRTT();
+    double idealRate = (MAX_PKT_SIZE - sizeof(SenderDataHeader) * senderWindow) / (estRTT * 1e3);
+    printf("Main:    estRTT %.3f, ideal rate %.3f\n", estRTT, idealRate);
 
 
     cleanUpWinsock();

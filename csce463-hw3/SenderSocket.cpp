@@ -2,7 +2,7 @@
 #include "pch.h"
 
 using std::chrono::duration, std::chrono::duration_cast, std::chrono::high_resolution_clock,
-      std::chrono::milliseconds, std::chrono::steady_clock, std::mutex, std::lock_guard, std::thread;
+    std::chrono::milliseconds, std::chrono::steady_clock, std::mutex, std::lock_guard, std::thread;
 
 SenderSocket::SenderSocket()
 {
@@ -70,6 +70,7 @@ void SenderSocket::updateRTO(DWORD RTT)
 
 int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkProperties *linkProperties)
 {
+    stats = thread(&SenderSocket::StatsRun, this);
     // TODO: sends SYN and receives SYN-ACK
     // send a packet with syn set to 1
     // should recv with syn and ack both to 1
@@ -82,7 +83,8 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     eventQuit = CreateEvent(NULL, true, false, NULL);
     long networkMask = FD_READ;
     int r = WSAEventSelect(sock, socketReceiveReady, networkMask);
-    if (r == SOCKET_ERROR) {
+    if (r == SOCKET_ERROR)
+    {
         printf("WSAEventSelect() failed with %d\n", WSAGetLastError());
         exit(EXIT_FAILURE);
     }
@@ -136,7 +138,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     {
         // send request to server
         double start = getElapsedTime();
-        printf("[%.3f]  --> SYN %u (attempt %d of %d, RTO %.3f) to %s\n", start, ssh.sdh.seq, count + 1, maxAttempsSYN, RTO, inet_ntoa(remote.sin_addr));
+        // printf("[%.3f]  --> SYN %u (attempt %d of %d, RTO %.3f) to %s\n", start, ssh.sdh.seq, count + 1, maxAttempsSYN, RTO, inet_ntoa(remote.sin_addr));
 
         if (sendto(sock, (char *)(&ssh), sizeof(SenderSynHeader), 0, (sockaddr *)&remote, sizeof(remote)) == SOCKET_ERROR)
         {
@@ -179,10 +181,11 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
             devRTT = 0;
             RTO = estRTT + 4 * max(devRTT, 0.01);
             // TODO: change window afer part1
-            printf("[%.3f]  <-- SYN-ACK %u window 1; setting initial RTO to %.3f\n", end, ssh.sdh.seq, RTO);
+            // printf("[%.3f]  <-- SYN-ACK %u window 1; setting initial RTO to %.3f\n", end, ssh.sdh.seq, RTO);
             worker = thread(&SenderSocket::WorkerRun, this);
 
-            if (!ResetEvent(socketReceiveReady)) {
+            if (!ResetEvent(socketReceiveReady))
+            {
                 printf("ResetEvent() for socketRecieveREady failed with %d\n", WSAGetLastError());
                 exit(EXIT_FAILURE);
             }
@@ -222,40 +225,47 @@ void SenderSocket::sendPacket(const char *buf, const int &bytes)
     }
 }
 
-void SenderSocket::WorkerRun() {
-    HANDLE events[] = { socketReceiveReady, full, eventQuit };
-    while (true) {
+void SenderSocket::WorkerRun()
+{
+    HANDLE events[] = {socketReceiveReady, full, eventQuit};
+    while (true)
+    {
         DWORD timeout = INFINITE;
-        if (senderBase != nextToSend) {
+        if (senderBase != nextToSend)
+        {
             timeout = timerExpire - clock();
         }
         int result = WaitForMultipleObjects(3, events, false, timeout);
-        if (result == WAIT_FAILED || result == WAIT_ABANDONED) {
+        if (result == WAIT_FAILED || result == WAIT_ABANDONED)
+        {
             printf("WaitForSingleObject() failed with %d\n", WSAGetLastError());
             exit(EXIT_FAILURE);
         }
         recomputeTimerExpire = false;
-        switch (result) {
+        switch (result)
+        {
         case WAIT_TIMEOUT:
             recomputeTimerExpire = true;
             // resendbase
             {
-                Packet* pkt = buffer + (senderBase % window);
+                Packet *pkt = buffer + (senderBase % window);
                 sendPacket(pkt->pkt, pkt->size);
                 printf("resent base packet with seq %d\n", senderBase);
             }
             ++baseRetxCount;
+            ++timeoutCount;
             break;
         case WAIT_OBJECT_0:
             recvPacket();
             break;
         case (WAIT_OBJECT_0 + 1):
         {
-            Packet* pkt = buffer + (nextToSend % window);
+            Packet *pkt = buffer + (nextToSend % window);
             sendPacket(pkt->pkt, pkt->size);
             printf("sent packet with seq %d\n", nextToSend);
 
-            if (nextToSend == senderBase) {
+            if (nextToSend == senderBase)
+            {
                 recomputeTimerExpire = true;
             }
 
@@ -269,65 +279,108 @@ void SenderSocket::WorkerRun() {
             exit(EXIT_FAILURE);
         }
 
-        if (recomputeTimerExpire) {
+        if (recomputeTimerExpire)
+        {
             timerExpire = clock() + (DWORD)RTO;
         }
     }
 }
 
-void SenderSocket::StatsRun() {
-    while (WaitForSingleObject(eventQuit, 2000) == WAIT_TIMEOUT) {
-        printf("[ %d] B    %d (  %.1f MB) N    %d T %d F %d W %d S %.3f Mbps RTT %.3f\n",
-                (int)getElapsedTime(), senderBase, mb, nextToSend, timeoutCount, fastRetx,
-                min((DWORD)window, receiverWindow), goodput, estRTT);
+void SenderSocket::StatsRun()
+{
+    lastStatsTime = getElapsedTime();
+    lastStatsBase = senderBase;
+    while (WaitForSingleObject(eventQuit, 2000) == WAIT_TIMEOUT)
+    {
+
+        double now = getElapsedTime();
+        double dt = now - lastStatsTime;
+        DWORD b = senderBase;
+        DWORD n = nextToSend;
+
+        DWORD deltaAckPkts = (b >= lastStatsBase) ? (b - lastStatsBase) : 0;
+
+        if (dt > 0)
+        {
+            goodput = (deltaAckPkts * 8 *(MAX_PKT_SIZE - sizeof(SenderDataHeader)) / (dt * 1e6);
+        }
+
+        double mbDelivered = totalAckedBytes / (1e-6);
+
+        printf("[ %d] B %5u ( %6.1f MB) N %5u T %d F %d W %u S %.3f Mbps RTT %.3f\n",
+               (int)now,
+               b,
+               mbDelivered,
+               n,
+               timeoutCount,
+               fastRetx,
+               (unsigned)min((DWORD)window, receiverWindow),
+               goodput,
+               estRTT);
+
+        lastStatsTime = now;
+        lastStatsBase = b;
     }
+    //     printf("[ %d] B    %d (  %.1f MB) N    %d T %d F %d W %d S %.3f Mbps RTT %.3f\n",
+    //             (int)getElapsedTime(), senderBase, mb, nextToSend, timeoutCount, fastRetx,
+    //             min((DWORD)window, receiverWindow), goodput, estRTT);
+    // }
 }
 
-void SenderSocket::recvPacket() {
-        ReceiverHeader rh;
-        int bytes = recvfrom(sock, (char*)(&rh), sizeof(ReceiverHeader), 0, NULL, NULL);
-        if (bytes == SOCKET_ERROR) {
-            printf("recvfrom() failed with %d\n", WSAGetLastError());
+void SenderSocket::recvPacket()
+{
+    ReceiverHeader rh;
+    int bytes = recvfrom(sock, (char *)(&rh), sizeof(ReceiverHeader), 0, NULL, NULL);
+    if (bytes == SOCKET_ERROR)
+    {
+        printf("recvfrom() failed with %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+
+    // check if FIN-ACK is recvd
+    if (rh.flags.FIN == 1 && rh.flags.ACK == 1)
+    {
+        printf("[%.3f]  <-- FIN-ACK %u window %X\n", getElapsedTime(), rh.ackSeq, rh.recvWnd);
+        SetEvent(eventQuit);
+        return;
+    }
+
+    DWORD ack = rh.ackSeq;
+    receiverWindow = rh.recvWnd;
+
+    printf("received ack with seq num %d\n", ack);
+
+    Packet *pkt = buffer + ((ack - 1) % window);
+    DWORD RTT = clock() - pkt->txTime;
+    if (baseRetxCount > 0)
+    {
+        updateRTO(RTT);
+    }
+
+    if (ack > senderBase)
+    {
+        baseRetxCount = 0;
+        recomputeTimerExpire = true;
+        DWORD newlyAcked = ack - senderBase;
+
+        totalAckedBytes += newlyAcked * pkt->size;
+
+        senderBase = ack;
+
+        if (!ReleaseSemaphore(empty, newlyAcked, NULL))
+        {
+            printf("ReleaseSemaphore() failed with %d\n", WSAGetLastError());
             exit(EXIT_FAILURE);
         }
-
-        // check if FIN-ACK is recvd
-        if (rh.flags.FIN == 1 && rh.flags.ACK == 1) {
-            printf("[]  <-- FIN-ACK %u window %x\n", rh.ackSeq, rh.recvWnd);
-            SetEvent(eventQuit);
-            return;
-        }
-
-        DWORD ack = rh.ackSeq;
-        receiverWindow = rh.recvWnd;
-
-        printf("received ack with seq num %d\n", ack);
-
-        Packet* pkt = buffer + ((ack - 1) % window);
-        DWORD RTT = clock() - pkt->txTime;
-        if (baseRetxCount > 0) {
-            updateRTO(RTT);
-        }
-
-        if (ack > senderBase) {
-            baseRetxCount = 0;
-            recomputeTimerExpire = true;
-            DWORD newlyAcked = ack - senderBase;
-
-            senderBase = ack;
-
-            if (!ReleaseSemaphore(empty, newlyAcked, NULL)) {
-                printf("ReleaseSemaphore() failed with %d\n", WSAGetLastError());
-                exit(EXIT_FAILURE);
-            }
-        }
+    }
 }
 
 int SenderSocket::Send(char *buf, int bytes)
 {
     // follow the picture from class
     DWORD result = WaitForSingleObject(empty, INFINITE);
-    if (result == WAIT_FAILED || result == WAIT_ABANDONED) {
+    if (result == WAIT_FAILED || result == WAIT_ABANDONED)
+    {
         printf("WaitForSingleObject() failed with %d\n", WSAGetLastError());
         exit(EXIT_FAILURE);
     }
@@ -336,7 +389,7 @@ int SenderSocket::Send(char *buf, int bytes)
         lock_guard<mutex> lg(mtx);
         // build packet
         int pktSize = bytes + sizeof(SenderDataHeader);
-        Packet* pkt = buffer + (seqNum % window);
+        Packet *pkt = buffer + (seqNum % window);
         SenderDataHeader sdh;
         sdh.seq = seqNum;
         memcpy(pkt->pkt, &sdh, sizeof(SenderDataHeader));
@@ -346,19 +399,21 @@ int SenderSocket::Send(char *buf, int bytes)
     }
 
     result = ReleaseSemaphore(full, 1, NULL);
-    if (result == 0) {
+    if (result == 0)
+    {
         printf("ReleaseSemaphore() failed with %d\n", WSAGetLastError());
         exit(EXIT_FAILURE);
     }
 
     ++seqNum;
 
-    return 0;
+    return STATUS_OK;
 }
 
 int SenderSocket::Close()
 {
-    while (seqNum != senderBase) {
+    while (seqNum != senderBase)
+    {
         Sleep(10);
     }
 
@@ -389,9 +444,9 @@ int SenderSocket::Close()
     {
         // send request to server
         double start = getElapsedTime();
-        printf("[%.3f]  --> FIN %u (attempt %d of %d, RTO %.3f)\n", start, sdh.seq, count + 1, maxAttempsFIN, RTO);
+        // printf("[%.3f]  --> FIN %u (attempt %d of %d, RTO %.3f)\n", start, sdh.seq, count + 1, maxAttempsFIN, RTO);
 
-        if (sendto(sock, (char*)(&sdh), sizeof(SenderSynHeader), 0, (sockaddr*)&remote, sizeof(remote)) == SOCKET_ERROR)
+        if (sendto(sock, (char *)(&sdh), sizeof(SenderSynHeader), 0, (sockaddr *)&remote, sizeof(remote)) == SOCKET_ERROR)
         {
             printf("[%.3f]  --> failed with %d on sendto()\n", getElapsedTime(), WSAGetLastError());
             return FAILED_SEND;
@@ -403,4 +458,8 @@ int SenderSocket::Close()
 
     worker.join();
     return STATUS_OK;
+}
+
+double SenderSocket::getEstRTT() {
+    return estRTT;
 }

@@ -69,6 +69,9 @@ private:
 
 	// stats variables
 	double mb = 0.0;
+	uint64_t totalAckedBytes = 0;
+	double lastStatsTime = 0.0;
+	DWORD lastStatsBase = 0;
 	int timeoutCount = 0;
 	int fastRetx = 0;
 	DWORD receiverWindow = 0;
@@ -87,4 +90,5 @@ public:
 	int Open(char *targetHost, short port, int senderWindow, LinkProperties *linkProperties);
 	int Send(char *buf, int bytes);
 	int Close();
+	double getEstRTT();
 };
