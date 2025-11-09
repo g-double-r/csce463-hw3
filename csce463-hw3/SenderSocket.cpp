@@ -65,7 +65,7 @@ void SenderSocket::updateRTO(DWORD RTT)
 
     RTO = estRTT + 4 * max(devRTT, 0.01);
 
-    printf("estRTT = %.3f devRTT = %.3f, new RTO = %.3f\n", estRTT, devRTT, RTO);
+    // printf("estRTT = %.3f devRTT = %.3f, new RTO = %.3f\n", estRTT, devRTT, RTO);
 }
 
 int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkProperties *linkProperties)
@@ -250,7 +250,7 @@ void SenderSocket::WorkerRun()
             {
                 Packet *pkt = buffer + (senderBase % window);
                 sendPacket(pkt->pkt, pkt->size);
-                printf("resent base packet with seq %d\n", senderBase);
+                // printf("resent base packet with seq %d\n", senderBase);
             }
             ++baseRetxCount;
             ++timeoutCount;
@@ -262,7 +262,7 @@ void SenderSocket::WorkerRun()
         {
             Packet *pkt = buffer + (nextToSend % window);
             sendPacket(pkt->pkt, pkt->size);
-            printf("sent packet with seq %d\n", nextToSend);
+            // printf("sent packet with seq %d\n", nextToSend);
 
             if (nextToSend == senderBase)
             {
@@ -302,10 +302,10 @@ void SenderSocket::StatsRun()
 
         if (dt > 0)
         {
-            goodput = (deltaAckPkts * 8 *(MAX_PKT_SIZE - sizeof(SenderDataHeader)) / (dt * 1e6);
+            goodput = (deltaAckPkts * 8 *(MAX_PKT_SIZE - sizeof(SenderDataHeader))) / (dt * 1e6);
         }
 
-        double mbDelivered = totalAckedBytes / (1e-6);
+        double mbDelivered = totalAckedBytes / (1e6);
 
         printf("[ %d] B %5u ( %6.1f MB) N %5u T %d F %d W %u S %.3f Mbps RTT %.3f\n",
                (int)now,
@@ -348,7 +348,7 @@ void SenderSocket::recvPacket()
     DWORD ack = rh.ackSeq;
     receiverWindow = rh.recvWnd;
 
-    printf("received ack with seq num %d\n", ack);
+    // printf("received ack with seq num %d\n", ack);
 
     Packet *pkt = buffer + ((ack - 1) % window);
     DWORD RTT = clock() - pkt->txTime;
@@ -363,7 +363,7 @@ void SenderSocket::recvPacket()
         recomputeTimerExpire = true;
         DWORD newlyAcked = ack - senderBase;
 
-        totalAckedBytes += newlyAcked * pkt->size;
+        totalAckedBytes += newlyAcked * (MAX_PKT_SIZE - sizeof(SenderDataHeader));
 
         senderBase = ack;
 
@@ -457,6 +457,7 @@ int SenderSocket::Close()
     }
 
     worker.join();
+    stats.join();
     return STATUS_OK;
 }
 

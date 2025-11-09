@@ -147,13 +147,13 @@ int main(int argc, char *argv[])
     }
 
     Checksum cs;
-    DWORD chkSum = cs.CRC32((unsigned char*)dwordBuf, (int)dwordBufSize);
+    DWORD chkSum = cs.CRC32((unsigned char*)charBuf, byteBufferSize);
     double kbps = ((dwordBufSize * 32) / (1e3)) / secs;
     printf("Main:   transfer finished in %.3f sec, %.2f Kbps, checksum %X\n", secs, kbps, chkSum);
 
     double estRTT = ss.getEstRTT();
     double idealRate = (MAX_PKT_SIZE - sizeof(SenderDataHeader) * senderWindow) / (estRTT * 1e3);
-    printf("Main:    estRTT %.3f, ideal rate %.3f\n", estRTT, idealRate);
+    printf("Main:   estRTT %.3f, ideal rate %.3f Kbps\n", estRTT, idealRate);
 
 
     cleanUpWinsock();
