@@ -15,8 +15,8 @@ SenderSocket::SenderSocket()
         exit(EXIT_FAILURE);
     }
     // set nonblocking
-    u_long one = 1;
-    ioctlsocket(sock, FIONBIO, &one);
+    //u_long one = 1;
+    //ioctlsocket(sock, FIONBIO, &one);
 
     memset(&local, 0, sizeof(local));
     local.sin_family = AF_INET;
@@ -186,7 +186,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
 
             if (!ResetEvent(socketReceiveReady))
             {
-                printf("ResetEvent() for socketRecieveREady failed with %d\n", WSAGetLastError());
+                printf("ResetEvent() for socketReceiveREady failed with %d\n", WSAGetLastError());
                 exit(EXIT_FAILURE);
             }
             return STATUS_OK;
@@ -233,7 +233,8 @@ void SenderSocket::WorkerRun()
         DWORD timeout = INFINITE;
         if (senderBase != nextToSend)
         {
-            timeout = timerExpire - clock();
+            // printf("timerExpire: %d - clock(): %d\n", timerExpire, clock());
+            timeout = (DWORD)((timerExpire - ((double)clock() / CLOCKS_PER_SEC)) * 1000);
         }
         int result = WaitForMultipleObjects(3, events, false, timeout);
         if (result == WAIT_FAILED || result == WAIT_ABANDONED)
@@ -241,6 +242,7 @@ void SenderSocket::WorkerRun()
             printf("WaitForSingleObject() failed with %d\n", WSAGetLastError());
             exit(EXIT_FAILURE);
         }
+        // printf("timeout: %d\n", timeout);
         recomputeTimerExpire = false;
         switch (result)
         {
@@ -250,7 +252,7 @@ void SenderSocket::WorkerRun()
             {
                 Packet *pkt = buffer + (senderBase % window);
                 sendPacket(pkt->pkt, pkt->size);
-                // printf("resent base packet with seq %d\n", senderBase);
+                 // printf("[worker @ %.3f] resent base packet with seq %d\n", getElapsedTime(), senderBase);
             }
             ++baseRetxCount;
             ++timeoutCount;
@@ -262,7 +264,7 @@ void SenderSocket::WorkerRun()
         {
             Packet *pkt = buffer + (nextToSend % window);
             sendPacket(pkt->pkt, pkt->size);
-            // printf("sent packet with seq %d\n", nextToSend);
+            //printf("[worker @ %.3f] sent packet with seq %d\n", getElapsedTime(), nextToSend);
 
             if (nextToSend == senderBase)
             {
@@ -281,7 +283,8 @@ void SenderSocket::WorkerRun()
 
         if (recomputeTimerExpire)
         {
-            timerExpire = clock() + (DWORD)RTO;
+            timerExpire = ((double)clock() / CLOCKS_PER_SEC) + 2*RTO;
+            // printf("timerExpire updated: %d, RTO %d\n", timerExpire, (DWORD)RTO);
         }
     }
 }
@@ -348,7 +351,7 @@ void SenderSocket::recvPacket()
     DWORD ack = rh.ackSeq;
     receiverWindow = rh.recvWnd;
 
-    // printf("received ack with seq num %d\n", ack);
+    //printf("[worker @ %.3f] received ack with seq num %d\n", getElapsedTime(), ack);
 
     Packet *pkt = buffer + ((ack - 1) % window);
     DWORD RTT = clock() - pkt->txTime;
@@ -384,7 +387,7 @@ int SenderSocket::Send(char *buf, int bytes)
         printf("WaitForSingleObject() failed with %d\n", WSAGetLastError());
         exit(EXIT_FAILURE);
     }
-
+    // todo: no need for mutex
     {
         lock_guard<mutex> lg(mtx);
         // build packet
@@ -440,7 +443,7 @@ int SenderSocket::Close()
     int count = 0;
     int nfds = (int)(sock + 1);
     // todo: quit after max count
-    while (WaitForSingleObject(eventQuit, (DWORD)RTO) == WAIT_TIMEOUT && count < maxAttempsFIN)
+    while (WaitForSingleObject(eventQuit, (DWORD)(RTO * 1000)) == WAIT_TIMEOUT && count < maxAttempsFIN)
     {
         // send request to server
         double start = getElapsedTime();

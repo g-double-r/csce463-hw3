@@ -47,7 +47,7 @@ private:
 	double RTO;
 	double estRTT;
 	double devRTT;
-	DWORD timerExpire;
+	double timerExpire;
 	boolean recomputeTimerExpire;
 	int baseRetxCount = 0;
 	int window;
