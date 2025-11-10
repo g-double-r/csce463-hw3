@@ -54,7 +54,7 @@ double SenderSocket::getElapsedTime()
     return duration_cast<duration<double>>(elapsedTime).count();
 }
 
-void SenderSocket::updateRTO(DWORD RTT)
+void SenderSocket::updateRTO(double RTT)
 {
     double alpha = 0.125, beta = 0.25;
     estRTT = (1 - alpha) * estRTT + alpha * RTT;
@@ -280,7 +280,7 @@ void SenderSocket::WorkerRun()
 
         if (recomputeTimerExpire)
         {
-            timerExpire = ((double)clock() / CLOCKS_PER_SEC) + 2*RTO;
+            timerExpire = ((double)clock() / CLOCKS_PER_SEC) + RTO;
             // printf("timerExpire updated: %d, RTO %d\n", timerExpire, (DWORD)RTO);
         }
     }
@@ -351,7 +351,7 @@ void SenderSocket::recvPacket()
     //printf("[worker @ %.3f] received ack with seq num %d\n", getElapsedTime(), ack);
 
     Packet *pkt = buffer + ((ack - 1) % window);
-    DWORD RTT = clock() - pkt->txTime;
+    double RTT = ((double)clock() / CLOCKS_PER_SEC) - ((double)(pkt->txTime) / CLOCKS_PER_SEC);
     if (baseRetxCount > 0)
     {
         updateRTO(RTT);

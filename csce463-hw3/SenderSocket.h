@@ -78,7 +78,7 @@ private:
 	double goodput = 0.0;
 	void closeSocket();
 	double getElapsedTime();
-	void updateRTO(DWORD RTT);
+	void updateRTO(double RTT);
 	void sendPacket(const char *buf, const int &bytes);
 	void WorkerRun();
 	void recvPacket();
