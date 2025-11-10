@@ -14,9 +14,6 @@ SenderSocket::SenderSocket()
         WSACleanup();
         exit(EXIT_FAILURE);
     }
-    // set nonblocking
-    //u_long one = 1;
-    //ioctlsocket(sock, FIONBIO, &one);
 
     memset(&local, 0, sizeof(local));
     local.sin_family = AF_INET;
@@ -252,7 +249,7 @@ void SenderSocket::WorkerRun()
             {
                 Packet *pkt = buffer + (senderBase % window);
                 sendPacket(pkt->pkt, pkt->size);
-                 // printf("[worker @ %.3f] resent base packet with seq %d\n", getElapsedTime(), senderBase);
+                //printf("[worker @ %.3f] resent base packet with seq %d\n", getElapsedTime(), senderBase);
             }
             ++baseRetxCount;
             ++timeoutCount;
