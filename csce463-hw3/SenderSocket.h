@@ -89,6 +89,6 @@ public:
 	~SenderSocket();
 	int Open(char *targetHost, short port, int senderWindow, LinkProperties *linkProperties);
 	int Send(char *buf, int bytes);
-	int Close();
+	int Close(double &elapsedTime);
 	double getEstRTT();
 };

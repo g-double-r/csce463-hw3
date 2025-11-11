@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
     start = high_resolution_clock::now();
     int status = ss.Open(targetHost, MAGIC_PORT, senderWindow, &lp);
     double secs = duration_cast<duration<double>>(high_resolution_clock::now() - start).count();
-    start = high_resolution_clock::now();
+    double s = (double)clock() / CLOCKS_PER_SEC;
 
     printf("Main:   ");
     switch (status)
@@ -138,8 +138,10 @@ int main(int argc, char *argv[])
     }
 
     // close connection
-    secs = duration_cast<duration<double>>(high_resolution_clock::now() - start).count();
-    status = ss.Close();
+    double elapsedTime;
+    status = ss.Close(elapsedTime);
+    //secs = duration_cast<duration<double>>(elapsedTime - start).count();
+    double seconds = elapsedTime - s;
     if (status != STATUS_OK)
     {
         printf("close failed with status %d\n", status);
@@ -148,8 +150,8 @@ int main(int argc, char *argv[])
 
     Checksum cs;
     DWORD chkSum = cs.CRC32((unsigned char*)charBuf, byteBufferSize);
-    double measuredRate = ((dwordBufSize * 32) / (1e3)) / secs;
-    printf("Main:   transfer finished in %.3f sec, %.2f Kbps, checksum %X\n", secs, measuredRate, chkSum);
+    double measuredRate = ((byteBufferSize * 8) / (1e3)) / seconds;
+    printf("Main:   transfer finished in %.3f sec, %.2f Kbps, checksum %X\n", seconds, measuredRate, chkSum);
 
     double estRTT = ss.getEstRTT();
     double idealRate = ((MAX_PKT_SIZE - sizeof(SenderDataHeader)) * 8 * senderWindow) / (estRTT * 1e3);
