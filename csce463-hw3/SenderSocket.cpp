@@ -456,6 +456,10 @@ int SenderSocket::Close()
         ++count;
     }
 
+    if (count == (maxAttempsFIN - 1)) {
+        return TIMEOUT;
+    }
+
     worker.join();
     stats.join();
     return STATUS_OK;
