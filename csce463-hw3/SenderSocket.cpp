@@ -302,7 +302,7 @@ void SenderSocket::StatsRun()
 
         double mbDelivered = totalAckedBytes / (1e6);
 
-        printf("[ %d] B %5u ( %4.1f MB) N %5u T %d F %d W %u S %.3f Mbps RTT %.3f\n",
+        printf("[%2d] B %5u ( %4.1f MB) N %5u T %d F %d W %u S %.3f Mbps RTT %.3f\n",
                (int)now,
                b,
                mbDelivered,
