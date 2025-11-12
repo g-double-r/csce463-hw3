@@ -1,30 +1,16 @@
 #pragma once
 
-#ifdef __APPLE__
-	#include <errno.h>
-	#include <sys/socket.h>
-	#include <netinet/in.h>
-	#include <arpa/inet.h>
-	#include <sys/select.h>
-	#include <sys/time.h>
-	#include <sys/types.h>
-	#include <unistd.h>
-	#include <netdb.h>
-	#define WSAGetLastError() (errno)
-	#define WSACleanup() ((void)0)
-	typedef int SOCKET;
-	typedef uint32_t DWORD;
-	#define INVALID_SOCKET (-1)
-	#define SOCKET_ERROR (-1)
-#else
-	#define _WINSOCK_DEPRECATED_NO_WARNINGS
-	#include <WinSock2.h>
-	#include <WS2tcpip.h>
-	#pragma comment(lib, "Ws2_32.lib")
-#endif
+
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+#include <windows.h>
+#pragma comment(lib, "Ws2_32.lib")
 
 #include "PacketHeaders.h"
 #include <chrono>
+#include <mutex>
+#include <thread>
 
 // CONSTANTS
 #define MAGIC_PORT 22345		 // receiver listens on this port
@@ -39,6 +25,15 @@
 #define TIMEOUT 5			// timeout after all retx attempts are exhausted
 #define FAILED_RECV 6		// recvfrom() failed in kernel
 
+// todo: for stats sleep on event quit with two second timeout
+
+class Packet {
+public:
+	// int type; // SYN, FIN, data
+	int size; // bytes in packet data
+	clock_t txTime; // transmission time
+	char pkt[MAX_PKT_SIZE]; // packet with header
+};
 class SenderSocket
 {
 private:
@@ -46,18 +41,53 @@ private:
 	sockaddr_in local;
 	sockaddr_in remote;
 	std::chrono::steady_clock::time_point constructedTime;
-	double RTO = 1;
+	std::thread worker;
+	std::thread stats;
+	double RTO;
+	double estRTT;
+	double devRTT;
+	double timerExpire;
+	boolean recomputeTimerExpire;
+	int baseRetxCount = 0;
+	int window;
+	DWORD senderBase = 0;
+	int produced = 0;
+	int seqNum = 0;
+	int nextToSend = 0;
 	int maxAttempsSYN = 3;
 	int maxAttempsFIN = 5;
-	// TODO: update after part1
-	// short window = 1;
+	// semaphores
+	HANDLE empty;
+	HANDLE full;
+	HANDLE socketReceiveReady;
+	HANDLE eventQuit;
+
+	// buffer
+	Packet* buffer;
+	std::mutex mtx;
+
+	// stats variables
+	double mb = 0.0;
+	uint64_t totalAckedBytes = 0;
+	double lastStatsTime = 0.0;
+	DWORD lastStatsBase = 0;
+	int timeoutCount = 0;
+	int fastRetx = 0;
+	DWORD receiverWindow = 0;
+	double goodput = 0.0;
 	void closeSocket();
 	double getElapsedTime();
+	void updateRTO(double RTT);
+	void sendPacket(const char *buf, const int &bytes);
+	void WorkerRun();
+	void recvPacket();
+	void StatsRun();
 
 public:
 	SenderSocket();
 	~SenderSocket();
 	int Open(char *targetHost, short port, int senderWindow, LinkProperties *linkProperties);
 	int Send(char *buf, int bytes);
-	int Close();
+	int Close(double &elapsedTime);
+	double getEstRTT();
 };
