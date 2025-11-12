@@ -92,28 +92,36 @@ int main(int argc, char *argv[])
     double s = (double)clock() / CLOCKS_PER_SEC;
 
     printf("Main:   ");
-    switch (status)
+    if (status != STATUS_OK)
     {
-    case INVALID_NAME:
         printf("connect failed with status %d\n", status);
         delete[] dwordBuf;
         exit(EXIT_FAILURE);
-    case FAILED_SEND:
-        printf("connect failed with status %d\n", status);
-        delete[] dwordBuf;
-        exit(EXIT_FAILURE);
-    case FAILED_RECV:
-        printf("connect failed with status %d\n", status);
-        delete[] dwordBuf;
-        exit(EXIT_FAILURE);
-    case TIMEOUT:
-        printf("connect failed with status %d\n", status);
-        delete[] dwordBuf;
-        exit(EXIT_FAILURE);
-    default:
-        printf("connected to %s in %.3f sec, pkt size %d bytes\n", targetHost, secs, MAX_PKT_SIZE);
-        break;
     }
+    printf("connected to %s in %.3f sec, pkt size %d bytes\n", targetHost, secs, MAX_PKT_SIZE);
+
+    // switch (status)
+    // {
+    // case INVALID_NAME:
+    //     printf("connect failed with status %d\n", status);
+    //     delete[] dwordBuf;
+    //     exit(EXIT_FAILURE);
+    // case FAILED_SEND:
+    //     printf("connect failed with status %d\n", status);
+    //     delete[] dwordBuf;
+    //     exit(EXIT_FAILURE);
+    // case FAILED_RECV:
+    //     printf("connect failed with status %d\n", status);
+    //     delete[] dwordBuf;
+    //     exit(EXIT_FAILURE);
+    // case TIMEOUT:
+    //     printf("connect failed with status %d\n", status);
+    //     delete[] dwordBuf;
+    //     exit(EXIT_FAILURE);
+    // default:
+    //     printf("connected to %s in %.3f sec, pkt size %d bytes\n", targetHost, secs, MAX_PKT_SIZE);
+    //     break;
+    // }
 
     // TODO: uncomment for part 2
     // send loop
@@ -140,7 +148,7 @@ int main(int argc, char *argv[])
     // close connection
     double elapsedTime;
     status = ss.Close(elapsedTime);
-    //secs = duration_cast<duration<double>>(elapsedTime - start).count();
+    // secs = duration_cast<duration<double>>(elapsedTime - start).count();
     double seconds = elapsedTime - s;
     if (status != STATUS_OK)
     {
@@ -149,14 +157,13 @@ int main(int argc, char *argv[])
     }
 
     Checksum cs;
-    DWORD chkSum = cs.CRC32((unsigned char*)charBuf, byteBufferSize);
+    DWORD chkSum = cs.CRC32((unsigned char *)charBuf, byteBufferSize);
     double measuredRate = ((byteBufferSize * 8) / (1e3)) / seconds;
     printf("Main:   transfer finished in %.3f sec, %.2f Kbps, checksum %X\n", seconds, measuredRate, chkSum);
 
     double estRTT = ss.getEstRTT();
     double idealRate = ((MAX_PKT_SIZE - sizeof(SenderDataHeader)) * 8 * senderWindow) / (estRTT * 1e3);
     printf("Main:   estRTT %.3f, ideal rate %.2f Kbps\n", estRTT, idealRate);
-
 
     cleanUpWinsock();
 
