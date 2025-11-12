@@ -100,30 +100,7 @@ int main(int argc, char *argv[])
     }
     printf("connected to %s in %.3f sec, pkt size %d bytes\n", targetHost, secs, MAX_PKT_SIZE);
 
-    // switch (status)
-    // {
-    // case INVALID_NAME:
-    //     printf("connect failed with status %d\n", status);
-    //     delete[] dwordBuf;
-    //     exit(EXIT_FAILURE);
-    // case FAILED_SEND:
-    //     printf("connect failed with status %d\n", status);
-    //     delete[] dwordBuf;
-    //     exit(EXIT_FAILURE);
-    // case FAILED_RECV:
-    //     printf("connect failed with status %d\n", status);
-    //     delete[] dwordBuf;
-    //     exit(EXIT_FAILURE);
-    // case TIMEOUT:
-    //     printf("connect failed with status %d\n", status);
-    //     delete[] dwordBuf;
-    //     exit(EXIT_FAILURE);
-    // default:
-    //     printf("connected to %s in %.3f sec, pkt size %d bytes\n", targetHost, secs, MAX_PKT_SIZE);
-    //     break;
-    // }
 
-    // TODO: uncomment for part 2
     // send loop
     char *charBuf = (char *)dwordBuf;
     uint64_t byteBufferSize = dwordBufSize << 2;
@@ -148,7 +125,6 @@ int main(int argc, char *argv[])
     // close connection
     double elapsedTime;
     status = ss.Close(elapsedTime);
-    // secs = duration_cast<duration<double>>(elapsedTime - start).count();
     double seconds = elapsedTime - s;
     if (status != STATUS_OK)
     {
