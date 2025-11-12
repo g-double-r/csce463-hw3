@@ -73,7 +73,8 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     // should recv with syn and ack both to 1
     buffer = new Packet[senderWindow];
     window = senderWindow;
-    empty = CreateSemaphore(NULL, window, window, NULL);
+    // empty = CreateSemaphore(NULL, window, window, NULL);
+    empty = CreateSemaphore(NULL, 0, window, NULL);
     full = CreateSemaphore(NULL, 0, window, NULL);
 
     socketReceiveReady = CreateEvent(NULL, false, false, NULL);
@@ -126,7 +127,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     // send
     // declare struct directly and read into it
     // sizeof sendersynheader when sending
-    SenderSynHeader sshRecv;
+    ReceiverHeader rh;
     sockaddr_in response;
     socklen_t respLen = sizeof(response);
     int count = 0;
@@ -157,7 +158,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
         int available = select(nfds, &fd, NULL, NULL, &timeout);
         if (available > 0)
         {
-            int bytes = recvfrom(sock, (char *)(&sshRecv), sizeof(SenderSynHeader), 0, (sockaddr *)&response, &respLen);
+            int bytes = recvfrom(sock, (char *)(&rh), sizeof(SenderSynHeader), 0, (sockaddr *)&response, &respLen);
             if (bytes == SOCKET_ERROR)
             {
                 printf("[%.3f]  <-- failed with %d on recvfrom()\n", getElapsedTime(), WSAGetLastError());
@@ -167,7 +168,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
 
             // parse sdh
             // !! window size is always one for part 1
-            if (sshRecv.sdh.flags.SYN != 1 || sshRecv.sdh.flags.ACK != 1)
+            if (rh.flags.SYN != 1 || rh.flags.ACK != 1)
             {
                 printf("SYN-ACK not acknowledged!\n");
                 exit(EXIT_FAILURE);
@@ -184,6 +185,12 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
             if (!ResetEvent(socketReceiveReady))
             {
                 printf("ResetEvent() for socketReceiveREady failed with %d\n", WSAGetLastError());
+                exit(EXIT_FAILURE);
+            }
+
+            lastReleased = min((DWORD)window, rh.recvWnd);
+            if (!ReleaseSemaphore(empty, lastReleased, NULL)) {
+                printf("ReleaseSemaphore() failed with %d\n", WSAGetLastError());
                 exit(EXIT_FAILURE);
             }
             return STATUS_OK;
@@ -225,6 +232,7 @@ void SenderSocket::sendPacket(const char *buf, const int &bytes)
 void SenderSocket::WorkerRun()
 {
     HANDLE events[] = {socketReceiveReady, full, eventQuit};
+
     while (true)
     {
         DWORD timeout = INFINITE;
@@ -309,7 +317,8 @@ void SenderSocket::StatsRun()
                n,
                timeoutCount,
                fastRetx,
-               (unsigned)min((DWORD)window, receiverWindow),
+               //(unsigned)min((DWORD)window, receiverWindow),
+               (unsigned)effectiveWindow,
                goodput,
                estRTT);
 
@@ -357,17 +366,28 @@ void SenderSocket::recvPacket()
         totalAckedBytes += newlyAcked * (MAX_PKT_SIZE - sizeof(SenderDataHeader));
 
         senderBase = ack;
+        effectiveWindow = min(window, (int)rh.recvWnd);
+        newReleased = senderBase + effectiveWindow - lastReleased;
+        lastReleased += newReleased;
 
-        if (!ReleaseSemaphore(empty, newlyAcked, NULL))
+        if (!ReleaseSemaphore(empty, newReleased, NULL))
         {
-            printf("ReleaseSemaphore() failed with %d\n", WSAGetLastError());
+            printf("ReleaseSemaphore() failed with %d on recv\n", WSAGetLastError());
             exit(EXIT_FAILURE);
         }
     }
     // this part is for triple duplicate ack
-    else {
+    else if (ack == senderBase) {
         // check counter and resend once it equals 3
         // same thing as timeout and reset variables
+        ++dupACK;
+        if (dupACK == 3) {
+            Packet* pkt = buffer + (senderBase % window);
+            sendPacket(pkt->pkt, pkt->size);
+            recomputeTimerExpire = true;
+            dupACK = 0;
+            ++fastRetx;
+        }
     }
 }
 

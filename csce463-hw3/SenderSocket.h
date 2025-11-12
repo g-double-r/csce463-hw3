@@ -56,6 +56,10 @@ private:
 	int nextToSend = 0;
 	int maxAttempsSYN = 3;
 	int maxAttempsFIN = 5;
+	int dupACK = 0;
+	int effectiveWindow = 0;
+	int lastReleased = 0;
+	int newReleased = 0;
 	// semaphores
 	HANDLE empty;
 	HANDLE full;
