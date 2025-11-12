@@ -79,6 +79,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
 
     socketReceiveReady = CreateEvent(NULL, false, false, NULL);
     eventQuit = CreateEvent(NULL, true, false, NULL);
+    eventAllACKed = CreateEvent(NULL, true, false, NULL);
     long networkMask = FD_READ;
     int r = WSAEventSelect(sock, socketReceiveReady, networkMask);
     if (r == SOCKET_ERROR)
@@ -231,6 +232,19 @@ void SenderSocket::sendPacket(const char *buf, const int &bytes)
 
 void SenderSocket::WorkerRun()
 {
+    int kernelBuffer = 20e6; // 20 meg
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*)(& kernelBuffer), sizeof(int)) == SOCKET_ERROR) {
+        printf("setcokopt() failed with %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+    kernelBuffer = 20e6; // 20 meg
+    if (setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char*)(&kernelBuffer), sizeof(int)) == SOCKET_ERROR) {
+        printf("setcokopt() failed with %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+
+
     HANDLE events[] = {socketReceiveReady, full, eventQuit};
 
     while (true)
@@ -348,6 +362,10 @@ void SenderSocket::recvPacket()
     DWORD ack = rh.ackSeq;
     receiverWindow = rh.recvWnd;
 
+    if (ack == seqNum) {
+        SetEvent(eventAllACKed);
+    }
+
     //printf("[worker @ %.3f] received ack with seq num %d\n", getElapsedTime(), ack);
 
     Packet *pkt = buffer + ((ack - 1) % window);
@@ -425,10 +443,8 @@ int SenderSocket::Send(char *buf, int bytes)
 
 int SenderSocket::Close(double &elapsedTime)
 {
-    while (seqNum != senderBase)
-    {
-        Sleep(10);
-    }
+
+    WaitForSingleObject(eventAllACKed, INFINITE);
 
     elapsedTime = (double)clock() / CLOCKS_PER_SEC;
 

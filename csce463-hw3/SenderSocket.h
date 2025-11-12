@@ -65,6 +65,7 @@ private:
 	HANDLE full;
 	HANDLE socketReceiveReady;
 	HANDLE eventQuit;
+	HANDLE eventAllACKed;
 
 	// buffer
 	Packet* buffer;
