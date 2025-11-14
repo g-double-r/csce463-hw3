@@ -54,7 +54,7 @@ double SenderSocket::getElapsedTime()
     return duration_cast<duration<double>>(elapsedTime).count();
 }
 
-void SenderSocket::updateRTO(double RTT, DWORD ack)
+void SenderSocket::updateRTO(double RTT)
 {
     double alpha = 0.125, beta = 0.25;
     estRTT = (1 - alpha) * estRTT + alpha * RTT;
@@ -381,14 +381,14 @@ void SenderSocket::recvPacket()
     double RTT = ((double)clock() / CLOCKS_PER_SEC) - ((double)(pkt->txTime) / CLOCKS_PER_SEC);
     //if (baseRetxCount == 0)
     //{
-    //    updateRTO(RTT, ack);
+    //    updateRTO(RTT);
     //}
 
     if (ack > senderBase)
     {
         if (baseRetxCount == 0)
         {
-            updateRTO(RTT, ack);
+            updateRTO(RTT);
         }
 
         dupACK = 0;
