@@ -25,7 +25,6 @@
 #define TIMEOUT 5			// timeout after all retx attempts are exhausted
 #define FAILED_RECV 6		// recvfrom() failed in kernel
 
-// todo: for stats sleep on event quit with two second timeout
 
 class Packet {
 public:
@@ -47,15 +46,15 @@ private:
 	double estRTT;
 	double devRTT;
 	double timerExpire;
-	boolean recomputeTimerExpire;
+	bool recomputeTimerExpire;
 	int baseRetxCount = 0;
 	int window;
 	DWORD senderBase = 0;
 	int produced = 0;
 	int seqNum = 0;
 	int nextToSend = 0;
-	int maxAttempsSYN = 3;
-	int maxAttempsFIN = 5;
+	int maxRetx = 50;
+	bool exceededRetx = false;
 	int dupACK = 0;
 	int effectiveWindow = 0;
 	int lastReleased = 0;

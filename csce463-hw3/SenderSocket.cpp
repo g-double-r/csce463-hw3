@@ -62,10 +62,10 @@ void SenderSocket::updateRTO(double RTT)
 
     RTO = estRTT + 4 * max(devRTT, 0.01);
 
-    //if (RTT > 0.8) {
-    //    printf("RTT = %.3f, estRTT = %.3f devRTT = %.3f, new RTO = %.3f from ACK %d. Base = %d\n", RTT, estRTT, devRTT, RTO, ack, senderBase);
-    //    getchar();
-    //}
+    // if (RTT > 0.8) {
+    //     printf("RTT = %.3f, estRTT = %.3f devRTT = %.3f, new RTO = %.3f from ACK %d. Base = %d\n", RTT, estRTT, devRTT, RTO, ack, senderBase);
+    //     getchar();
+    // }
 }
 
 int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkProperties *linkProperties)
@@ -194,7 +194,8 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
 
             lastReleased = min(window, (int)rh.recvWnd);
             effectiveWindow = lastReleased;
-            if (!ReleaseSemaphore(empty, lastReleased, NULL)) {
+            if (!ReleaseSemaphore(empty, lastReleased, NULL))
+            {
                 printf("ReleaseSemaphore() failed with %d\n", WSAGetLastError());
                 exit(EXIT_FAILURE);
             }
@@ -219,7 +220,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
         ++count;
     }
 
-    if (count == maxAttempsSYN)
+    if (count == maxRetx)
     {
         return TIMEOUT;
     }
@@ -237,17 +238,18 @@ void SenderSocket::sendPacket(const char *buf, const int &bytes)
 void SenderSocket::WorkerRun()
 {
     int kernelBuffer = 20e6; // 20 meg
-    if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*)(& kernelBuffer), sizeof(int)) == SOCKET_ERROR) {
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char *)(&kernelBuffer), sizeof(int)) == SOCKET_ERROR)
+    {
         printf("setcokopt() failed with %d\n", WSAGetLastError());
         exit(EXIT_FAILURE);
     }
     kernelBuffer = 20e6; // 20 meg
-    if (setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char*)(&kernelBuffer), sizeof(int)) == SOCKET_ERROR) {
+    if (setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char *)(&kernelBuffer), sizeof(int)) == SOCKET_ERROR)
+    {
         printf("setcokopt() failed with %d\n", WSAGetLastError());
         exit(EXIT_FAILURE);
     }
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-
 
     HANDLE events[] = {socketReceiveReady, full, eventQuit};
 
@@ -276,6 +278,11 @@ void SenderSocket::WorkerRun()
             }
             ++baseRetxCount;
             ++timeoutCount;
+            if (baseRetxCount == maxRetx)
+            {
+                exceededRetx = true;
+                return;
+            }
             // printf("[worker @ %.3f] resent base with seq num %d\n", ((double)clock() / CLOCKS_PER_SEC), senderBase);
             break;
         case WAIT_OBJECT_0:
@@ -326,7 +333,7 @@ void SenderSocket::StatsRun()
 
         if (dt > 0)
         {
-            goodput = (deltaAckPkts * 8 *(MAX_PKT_SIZE - sizeof(SenderDataHeader))) / (dt * 1e6);
+            goodput = (deltaAckPkts * 8 * (MAX_PKT_SIZE - sizeof(SenderDataHeader))) / (dt * 1e6);
         }
 
         double mbDelivered = totalAckedBytes / (1e6);
@@ -358,7 +365,6 @@ void SenderSocket::recvPacket()
         exit(EXIT_FAILURE);
     }
 
-
     // check if FIN-ACK is recvd
     if (rh.flags.FIN == 1 && rh.flags.ACK == 1)
     {
@@ -370,7 +376,8 @@ void SenderSocket::recvPacket()
     DWORD ack = rh.ackSeq;
     receiverWindow = rh.recvWnd;
 
-    if (ack == seqNum) {
+    if (ack == seqNum)
+    {
         SetEvent(eventAllACKed);
     }
 
@@ -379,10 +386,10 @@ void SenderSocket::recvPacket()
     Packet *pkt = buffer + ((ack - 1) % window);
     // printf("packet tx time: %.3f\n", ((double)(pkt->txTime) / CLOCKS_PER_SEC));
     double RTT = ((double)clock() / CLOCKS_PER_SEC) - ((double)(pkt->txTime) / CLOCKS_PER_SEC);
-    //if (baseRetxCount == 0)
+    // if (baseRetxCount == 0)
     //{
-    //    updateRTO(RTT);
-    //}
+    //     updateRTO(RTT);
+    // }
 
     if (ack > senderBase)
     {
@@ -410,16 +417,23 @@ void SenderSocket::recvPacket()
         }
     }
     // this part is for triple duplicate ack
-    else if (ack == senderBase) {
+    else if (ack == senderBase)
+    {
         // check counter and resend once it equals 3
         // same thing as timeout and reset variables
         ++dupACK;
-        if (dupACK == 3) {
-            Packet* pkt = buffer + (senderBase % window);
+        if (dupACK == 3)
+        {
+            Packet *pkt = buffer + (senderBase % window);
             sendPacket(pkt->pkt, pkt->size);
             recomputeTimerExpire = true;
             ++baseRetxCount;
             ++fastRetx;
+            if (baseRetxCount == maxRetx)
+            {
+                exceededRetx = true;
+                return;
+            }
             // printf("fast rext with base %d\n", senderBase);
         }
     }
@@ -427,6 +441,9 @@ void SenderSocket::recvPacket()
 
 int SenderSocket::Send(char *buf, int bytes)
 {
+    if (exceededRetx) {
+        return TIMEOUT;
+    }
     // follow the picture from class
     DWORD result = WaitForSingleObject(empty, INFINITE);
     if (result == WAIT_FAILED || result == WAIT_ABANDONED)
@@ -435,15 +452,15 @@ int SenderSocket::Send(char *buf, int bytes)
         exit(EXIT_FAILURE);
     }
 
-        // build packet
-        int pktSize = bytes + sizeof(SenderDataHeader);
-        Packet *pkt = buffer + (seqNum % window);
-        SenderDataHeader sdh;
-        sdh.seq = seqNum;
-        memcpy(pkt->pkt, &sdh, sizeof(SenderDataHeader));
-        memcpy(pkt->pkt + sizeof(SenderDataHeader), buf, bytes);
-        pkt->size = pktSize;
-        //pkt->txTime = clock();
+    // build packet
+    int pktSize = bytes + sizeof(SenderDataHeader);
+    Packet *pkt = buffer + (seqNum % window);
+    SenderDataHeader sdh;
+    sdh.seq = seqNum;
+    memcpy(pkt->pkt, &sdh, sizeof(SenderDataHeader));
+    memcpy(pkt->pkt + sizeof(SenderDataHeader), buf, bytes);
+    pkt->size = pktSize;
+    // pkt->txTime = clock();
 
     result = ReleaseSemaphore(full, 1, NULL);
     if (result == 0)
@@ -463,8 +480,6 @@ int SenderSocket::Close(double &elapsedTime)
     WaitForSingleObject(eventAllACKed, INFINITE);
 
     elapsedTime = (double)clock() / CLOCKS_PER_SEC;
-
-
 
     // TODO: call threads to die
     // TODO: sends FIN and receieves FIN-ACK
@@ -489,7 +504,7 @@ int SenderSocket::Close(double &elapsedTime)
     int count = 0;
     int nfds = (int)(sock + 1);
     // todo: quit after max count
-    while (WaitForSingleObject(eventQuit, (DWORD)(RTO * 1000)) == WAIT_TIMEOUT && count < maxAttempsFIN)
+    while (WaitForSingleObject(eventQuit, (DWORD)(RTO * 1000)) == WAIT_TIMEOUT && count < maxRetx)
     {
         // send request to server
         double start = getElapsedTime();
@@ -505,7 +520,8 @@ int SenderSocket::Close(double &elapsedTime)
         ++count;
     }
 
-    if (count == maxAttempsFIN) {
+    if (count == maxRetx)
+    {
         return TIMEOUT;
     }
 
@@ -514,6 +530,7 @@ int SenderSocket::Close(double &elapsedTime)
     return STATUS_OK;
 }
 
-double SenderSocket::getEstRTT() {
+double SenderSocket::getEstRTT()
+{
     return estRTT;
 }
