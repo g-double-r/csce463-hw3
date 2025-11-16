@@ -1,3 +1,9 @@
+/*
+* Giovan Ramirez-Rodarte
+* 432004695
+* CSCE 463 Fall 2025
+*/
+
 #pragma once
 
 

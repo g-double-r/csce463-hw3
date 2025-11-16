@@ -1,3 +1,9 @@
+/*
+* Giovan Ramirez-Rodarte
+* 432004695
+* CSCE 463 Fall 2025
+*/
+
 #include "SenderSocket.h"
 #include "pch.h"
 
@@ -136,7 +142,7 @@ int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkPrope
     socklen_t respLen = sizeof(response);
     int count = 0;
     int nfds = (int)(sock + 1);
-    while (count < maxAttempsSYN)
+    while (count < maxRetx)
     {
         // send request to server
         double start = (double)clock() / CLOCKS_PER_SEC;
