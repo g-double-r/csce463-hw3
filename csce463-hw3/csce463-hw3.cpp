@@ -9,6 +9,7 @@
 
 #include "pch.h"
 
+
 using std::chrono::duration, std::chrono::duration_cast, std::chrono::high_resolution_clock, std::chrono::milliseconds;
 
 static void initializeWinsock()
@@ -99,6 +100,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     printf("connected to %s in %.3f sec, pkt size %d bytes\n", targetHost, secs, MAX_PKT_SIZE);
+    // printf("connected to %s in %.3f sec, pkt size %d bytes\n", targetHost, secs, DUMMY_PKT_SIZE);
+
 
 
     // send loop
@@ -110,6 +113,7 @@ int main(int argc, char *argv[])
     {
         // decide the size of next chunk
         int bytes = (int)min((byteBufferSize - off), (uint64_t)(MAX_PKT_SIZE - sizeof(SenderDataHeader)));
+        // int bytes = (int)min((byteBufferSize - off), (uint64_t)(DUMMY_PKT_SIZE - sizeof(SenderDataHeader)));
         // send chunk into socket
         if ((status = ss.Send(charBuf + off, bytes)) != STATUS_OK)
         {

@@ -68,10 +68,7 @@ void SenderSocket::updateRTO(double RTT)
 
     RTO = estRTT + 4 * max(devRTT, 0.01);
 
-    // if (RTT > 0.8) {
-    //     printf("RTT = %.3f, estRTT = %.3f devRTT = %.3f, new RTO = %.3f from ACK %d. Base = %d\n", RTT, estRTT, devRTT, RTO, ack, senderBase);
-    //     getchar();
-    // }
+    // printf("estRTT updated to: %.3f\n", estRTT);
 }
 
 int SenderSocket::Open(char *targetHost, short port, int senderWindow, LinkProperties *linkProperties)

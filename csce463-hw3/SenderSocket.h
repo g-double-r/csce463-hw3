@@ -21,6 +21,7 @@
 // CONSTANTS
 #define MAGIC_PORT 22345		 // receiver listens on this port
 #define MAX_PKT_SIZE (1500 - 28) // maximum UDP packet size accepted by receiver
+#define DUMMY_PKT_SIZE (9000-28) // 9KB for dummy receiver
 
 // possible status codes from ss.Open, ss.Send, ss.Close
 #define STATUS_OK 0			// no error
@@ -38,6 +39,7 @@ public:
 	int size; // bytes in packet data
 	clock_t txTime; // transmission time
 	char pkt[MAX_PKT_SIZE]; // packet with header
+	// char pkt[DUMMY_PKT_SIZE]; // for report
 };
 class SenderSocket
 {
