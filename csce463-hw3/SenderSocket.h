@@ -76,7 +76,6 @@ private:
 
 	// buffer
 	Packet* buffer;
-	std::mutex mtx;
 
 	// stats variables
 	double mb = 0.0;
@@ -87,6 +86,8 @@ private:
 	int fastRetx = 0;
 	DWORD receiverWindow = 0;
 	double goodput = 0.0;
+
+	// helpers
 	void closeSocket();
 	double getElapsedTime();
 	void updateRTO(double RTT);
