@@ -1,3 +1,9 @@
+/*
+* Giovan Ramirez-Rodarte
+* 432004695
+* CSCE 463 Fall 2025
+*/
+
 #pragma once
 
 
@@ -15,6 +21,7 @@
 // CONSTANTS
 #define MAGIC_PORT 22345		 // receiver listens on this port
 #define MAX_PKT_SIZE (1500 - 28) // maximum UDP packet size accepted by receiver
+#define DUMMY_PKT_SIZE (9000-28) // 9KB for dummy receiver
 
 // possible status codes from ss.Open, ss.Send, ss.Close
 #define STATUS_OK 0			// no error
@@ -25,7 +32,6 @@
 #define TIMEOUT 5			// timeout after all retx attempts are exhausted
 #define FAILED_RECV 6		// recvfrom() failed in kernel
 
-// todo: for stats sleep on event quit with two second timeout
 
 class Packet {
 public:
@@ -33,6 +39,7 @@ public:
 	int size; // bytes in packet data
 	clock_t txTime; // transmission time
 	char pkt[MAX_PKT_SIZE]; // packet with header
+	// char pkt[DUMMY_PKT_SIZE]; // for report
 };
 class SenderSocket
 {
@@ -47,24 +54,28 @@ private:
 	double estRTT;
 	double devRTT;
 	double timerExpire;
-	boolean recomputeTimerExpire;
+	bool recomputeTimerExpire;
 	int baseRetxCount = 0;
 	int window;
 	DWORD senderBase = 0;
 	int produced = 0;
 	int seqNum = 0;
 	int nextToSend = 0;
-	int maxAttempsSYN = 3;
-	int maxAttempsFIN = 5;
+	int maxRetx = 50;
+	bool exceededRetx = false;
+	int dupACK = 0;
+	int effectiveWindow = 0;
+	int lastReleased = 0;
+	int newReleased = 0;
 	// semaphores
 	HANDLE empty;
 	HANDLE full;
 	HANDLE socketReceiveReady;
 	HANDLE eventQuit;
+	HANDLE eventAllACKed;
 
 	// buffer
 	Packet* buffer;
-	std::mutex mtx;
 
 	// stats variables
 	double mb = 0.0;
@@ -75,6 +86,8 @@ private:
 	int fastRetx = 0;
 	DWORD receiverWindow = 0;
 	double goodput = 0.0;
+
+	// helpers
 	void closeSocket();
 	double getElapsedTime();
 	void updateRTO(double RTT);
