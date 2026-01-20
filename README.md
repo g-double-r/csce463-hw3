@@ -9,9 +9,9 @@ This project implements a transport layer service over UDP in three stages:
 - Basic TCP-like handshake connection setup.
 
 ### Part 2: Single TCP-like connection 
-- Extends Part 1 by implementing many of the TCP features (dynamic RTOs, fast retxs, checksum).
+- Extends Part 1 by implementing many of the TCP features (dynamic RTOs, fast retxs, checksum) for one single packet.
 
 ### Part 3: Multi-Threaded 
-- Enhances Part 2 with multi-threading for improved performance.
+- Enhances Part 2 with a sender window greater than 1 for improved performance.
 
 > **Note:** This repository is designed to compile and run **only on Windows**.
